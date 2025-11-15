@@ -226,48 +226,9 @@ bool checkServerConnection() {
 }
 
 String getCurrentClassInfo() {
-  if (!ensureWiFiConnection()) {
-    return "";
-  }
-  
-  HTTPClient http;
-  String url = String(serverURL) + "/api/device/mode";
-  
-  http.begin(url);
-  http.setTimeout(5000);
-  http.addHeader("Content-Type", "application/json");
-  
-  String payload = "{\"device_id\":\"" + String(DEVICE_ID) + "}";
-  int httpCode = http.POST(payload);
-  
-  if (httpCode == 200) {
-    String response = http.getString();
-    http.end();
-    
-    DEBUG_PRINTLN("Class info response: " + response);
-    
-    // Parse class_name from JSON response
-    int classNamePos = response.indexOf("\"class_name\"");
-    if (classNamePos > -1 && classNamePos < response.length() - 10) {
-      int colonPos = response.indexOf(":", classNamePos);
-      if (colonPos > -1 && colonPos < response.length() - 3) {
-        int openQuotePos = response.indexOf("\"", colonPos);
-        if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
-          int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
-          if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
-            String className = response.substring(openQuotePos + 1, closeQuotePos);
-            DEBUG_PRINTLN("Parsed class name: " + className);
-            return className;
-          }
-        }
-      }
-    }
-  } else {
-    DEBUG_PRINTLN("Failed to get class info: " + String(httpCode));
-  }
-  
-  http.end();
-  return "";
+  // This function reuses the mode check response which already contains class info
+  // No need for a separate HTTP request
+  return "";  // Class info is now obtained directly from checkDeviceMode()
 }
 
 // Note: Enrollment and deletion are now handled through command polling
@@ -643,6 +604,7 @@ void setup() {
 
 // ================== DEVICE MODE CHECKING ==================
 String currentMode = "idle";  // 'idle', 'enrollment', 'attendance'
+String currentClassName = "";  // Current class name
 unsigned long lastModeCheck = 0;
 const unsigned long MODE_CHECK_INTERVAL = 5000; // Check mode every 5 seconds
 
@@ -704,6 +666,23 @@ String checkDeviceMode() {
   
   String mode = response.substring(openQuotePos + 1, closeQuotePos);
   
+  // Also extract class_name if present (for attendance mode)
+  int classNamePos = response.indexOf("\"class_name\"");
+  currentClassName = "";
+  if (classNamePos > -1 && classNamePos < response.length() - 20) {
+    int colonPos = response.indexOf(":", classNamePos);
+    if (colonPos > -1 && colonPos < response.length() - 3) {
+      int openQuotePos2 = response.indexOf("\"", colonPos);
+      if (openQuotePos2 > -1 && openQuotePos2 < response.length() - 1) {
+        int closeQuotePos2 = response.indexOf("\"", openQuotePos2 + 1);
+        if (closeQuotePos2 > openQuotePos2 && closeQuotePos2 <= response.length()) {
+          currentClassName = response.substring(openQuotePos2 + 1, closeQuotePos2);
+          DEBUG_PRINTLN("Current class: " + currentClassName);
+        }
+      }
+    }
+  }
+  
   DEBUG_PRINTLN("=== DEVICE MODE: " + mode + " ===");
   
   return mode;
@@ -736,48 +715,110 @@ bool pollForCommands() {
   String response = http.getString();
   http.end();
   
+  DEBUG_PRINTLN("Poll response: " + response);
+  
   // Parse JSON response to check if there's a command
-  int hasCommandPos = response.indexOf("\"has_command\":true");
+  // Look for "has_command": true (with or without space)
+  int hasCommandPos = response.indexOf("\"has_command\"");
   if (hasCommandPos == -1) {
+    DEBUG_PRINTLN("No has_command field found");
+    return false;
+  }
+  
+  // Check if the value is true
+  int truePos = response.indexOf("true", hasCommandPos);
+  int falsePos = response.indexOf("false", hasCommandPos);
+  
+  // If false comes before true, or true is not found, no command
+  if (truePos == -1 || (falsePos != -1 && falsePos < truePos)) {
+    DEBUG_PRINTLN("has_command is false");
     return false; // No pending commands
   }
   
-  // Extract command ID with bounds checking
-  int idPos = response.indexOf("\"id\":") + 5;
-  int idEnd = response.indexOf(",", idPos);
+  // Extract command ID with bounds checking (handle pretty-printed JSON)
+  int idPos = response.indexOf("\"id\"");
   int commandId = 0;
-  if (idPos > 5 && idEnd > idPos && idEnd <= response.length()) {
-    commandId = response.substring(idPos, idEnd).toInt();
-  } else {
+  if (idPos > -1 && idPos < response.length() - 10) {
+    int colonPos = response.indexOf(":", idPos);
+    if (colonPos > -1 && colonPos < response.length() - 2) {
+      // Skip whitespace after colon
+      int numStart = colonPos + 1;
+      while (numStart < response.length() && (response.charAt(numStart) == ' ' || response.charAt(numStart) == '\n' || response.charAt(numStart) == '\r')) {
+        numStart++;
+      }
+      // Find end of number
+      int numEnd = numStart;
+      while (numEnd < response.length() && response.charAt(numEnd) >= '0' && response.charAt(numEnd) <= '9') {
+        numEnd++;
+      }
+      if (numEnd > numStart) {
+        commandId = response.substring(numStart, numEnd).toInt();
+      }
+    }
+  }
+  
+  if (commandId == 0) {
     DEBUG_PRINTLN("ERROR: Failed to parse command ID");
     return false;
   }
   
-  // Extract command type with bounds checking
-  int typePos = response.indexOf("\"command_type\":\"") + 16;
-  int typeEnd = response.indexOf("\"", typePos);
+  // Extract command type with bounds checking (handle pretty-printed JSON)
+  int typePos = response.indexOf("\"command_type\"");
   String commandType = "";
-  if (typePos > 16 && typeEnd > typePos && typeEnd <= response.length()) {
-    commandType = response.substring(typePos, typeEnd);
-  } else {
+  if (typePos > -1 && typePos < response.length() - 20) {
+    int colonPos = response.indexOf(":", typePos);
+    if (colonPos > -1 && colonPos < response.length() - 3) {
+      int openQuotePos = response.indexOf("\"", colonPos);
+      if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+        int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+        if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+          commandType = response.substring(openQuotePos + 1, closeQuotePos);
+        }
+      }
+    }
+  }
+  
+  if (commandType.length() == 0) {
     DEBUG_PRINTLN("ERROR: Failed to parse command type");
     return false;
   }
   
-  // Extract fingerprint ID with bounds checking
-  int fpIdPos = response.indexOf("\"fingerprint_id\":") + 17;
-  int fpIdEnd = response.indexOf(",", fpIdPos);
+  // Extract fingerprint ID with bounds checking (handle pretty-printed JSON)
+  int fpIdPos = response.indexOf("\"fingerprint_id\"");
   int fingerprintId = 0;
-  if (fpIdPos > 17 && fpIdEnd > fpIdPos && fpIdEnd <= response.length()) {
-    fingerprintId = response.substring(fpIdPos, fpIdEnd).toInt();
+  if (fpIdPos > -1 && fpIdPos < response.length() - 20) {
+    int colonPos = response.indexOf(":", fpIdPos);
+    if (colonPos > -1 && colonPos < response.length() - 2) {
+      // Skip whitespace after colon
+      int numStart = colonPos + 1;
+      while (numStart < response.length() && (response.charAt(numStart) == ' ' || response.charAt(numStart) == '\n' || response.charAt(numStart) == '\r')) {
+        numStart++;
+      }
+      // Find end of number (comma, newline, or closing brace)
+      int numEnd = numStart;
+      while (numEnd < response.length() && response.charAt(numEnd) >= '0' && response.charAt(numEnd) <= '9') {
+        numEnd++;
+      }
+      if (numEnd > numStart) {
+        fingerprintId = response.substring(numStart, numEnd).toInt();
+      }
+    }
   }
   
-  // Extract student name with bounds checking
-  int namePos = response.indexOf("\"student_name\":\"") + 16;
-  int nameEnd = response.indexOf("\"", namePos);
+  // Extract student name with bounds checking (handle pretty-printed JSON)
+  int namePos = response.indexOf("\"student_name\"");
   String studentName = "";
-  if (namePos > 16 && nameEnd > namePos && nameEnd <= response.length()) {
-    studentName = response.substring(namePos, nameEnd);
+  if (namePos > -1 && namePos < response.length() - 20) {
+    int colonPos = response.indexOf(":", namePos);
+    if (colonPos > -1 && colonPos < response.length() - 3) {
+      int openQuotePos = response.indexOf("\"", colonPos);
+      if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+        int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+        if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+          studentName = response.substring(openQuotePos + 1, closeQuotePos);
+        }
+      }
+    }
   }
   
   DEBUG_PRINTLN("=== COMMAND RECEIVED ===");
@@ -936,9 +977,6 @@ void loop() {
   const unsigned long DEBOUNCE = 1000;
   static unsigned long lastEnrollmentPoll = 0;
   const unsigned long ENROLLMENT_POLL_INTERVAL = 2000; // Check for enrollment commands every 2 seconds
-  static unsigned long lastClassInfoUpdate = 0;
-  const unsigned long CLASS_INFO_UPDATE_INTERVAL = 10000; // Update class info every 10 seconds
-  static String currentClassInfo = "";
 
   // --- Check Device Mode Periodically ---
   if (millis() - lastModeCheck >= MODE_CHECK_INTERVAL) {
@@ -955,15 +993,14 @@ void loop() {
         lastEnrollmentPoll = 0; // Trigger immediate poll
         
       } else if (currentMode == "attendance") {
-        // Get current class info
-        currentClassInfo = getCurrentClassInfo();
-        if (currentClassInfo.length() > 0) {
-          String displayClass = currentClassInfo.substring(0, min(10, (int)currentClassInfo.length()));
+        // Use currentClassName from mode check
+        if (currentClassName.length() > 0) {
+          String displayClass = currentClassName.substring(0, min(10, (int)currentClassName.length()));
           showLCD("Class: " + displayClass, "Touch to scan");
         } else {
           showLCD("ATTENDANCE MODE", "Touch to scan");
         }
-        DEBUG_PRINTLN("Switched to ATTENDANCE mode - Class: " + currentClassInfo);
+        DEBUG_PRINTLN("Switched to ATTENDANCE mode - Class: " + currentClassName);
       } else {
         showLCD("Ready", "Touch to scan");
         DEBUG_PRINTLN("IDLE mode - Ready to scan");
@@ -971,16 +1008,7 @@ void loop() {
     }
   }
 
-  // --- Update class info display in attendance mode ---
-  if (currentMode == "attendance" && (millis() - lastClassInfoUpdate >= CLASS_INFO_UPDATE_INTERVAL)) {
-    lastClassInfoUpdate = millis();
-    currentClassInfo = getCurrentClassInfo();
-    if (currentClassInfo.length() > 0) {
-      String displayClass = currentClassInfo.substring(0, min(10, (int)currentClassInfo.length()));
-      showLCD("Class: " + displayClass, "Touch to scan");
-      DEBUG_PRINTLN("Current class: " + currentClassInfo);
-    }
-  }
+  // Class info is now updated automatically in checkDeviceMode()
 
   // --- ENROLLMENT MODE: Continuously check for enrollment commands ---
   if (currentMode == "enrollment") {
@@ -1002,9 +1030,8 @@ void loop() {
         } else if (currentMode == "enrollment") {
           showLCD("ENROLLMENT MODE", "Ready to enroll");
         } else if (currentMode == "attendance") {
-          currentClassInfo = getCurrentClassInfo();
-          if (currentClassInfo.length() > 0) {
-            String displayClass = currentClassInfo.substring(0, min(10, (int)currentClassInfo.length()));
+          if (currentClassName.length() > 0) {
+            String displayClass = currentClassName.substring(0, min(10, (int)currentClassName.length()));
             showLCD("Class: " + displayClass, "Touch to scan");
           } else {
             showLCD("ATTENDANCE MODE", "Touch to scan");
@@ -1028,8 +1055,8 @@ void loop() {
     
     // Restore display based on current mode
     delay(500);
-    if (currentMode == "attendance" && currentClassInfo.length() > 0) {
-      String displayClass = currentClassInfo.substring(0, min(10, (int)currentClassInfo.length()));
+    if (currentMode == "attendance" && currentClassName.length() > 0) {
+      String displayClass = currentClassName.substring(0, min(10, (int)currentClassName.length()));
       showLCD("Class: " + displayClass, "Touch to scan");
     } else if (currentMode == "attendance") {
       showLCD("ATTENDANCE MODE", "Touch to scan");

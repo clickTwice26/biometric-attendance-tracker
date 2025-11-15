@@ -139,6 +139,15 @@ def student_enroll(student_id):
     student = Student.query.get_or_404(student_id)
     device_id = request.form.get('device_id', 'ESP32-01')
     
+    # Get or create device
+    device = Device.query.filter_by(device_id=device_id).first()
+    if not device:
+        device = Device(device_id=device_id, name=device_id, mode='idle')
+        db.session.add(device)
+    
+    # Set device to enrollment mode
+    device.mode = 'enrollment'
+    
     # Create enrollment command
     command = Command(
         device_id=device_id,
@@ -151,7 +160,7 @@ def student_enroll(student_id):
     db.session.add(command)
     db.session.commit()
     
-    flash(f'Enrollment command created for {student.name}. Please scan finger on device.', 'success')
+    flash(f'Enrollment command created for {student.name}. Device set to enrollment mode. Please scan finger on device.', 'success')
     return redirect(url_for('frontend.students_list'))
 
 @bp.route('/classes')

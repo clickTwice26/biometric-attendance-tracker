@@ -3,7 +3,7 @@ Student Management Routes
 """
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models import Student, Command
+from app.models import Student, Command, Device
 
 bp = Blueprint('students', __name__, url_prefix='/api/students')
 
@@ -125,6 +125,15 @@ def enroll_student_fingerprint(student_id):
     if not student:
         return jsonify({'error': 'Student not found'}), 404
     
+    # Get or create device
+    device = Device.query.filter_by(device_id=device_id).first()
+    if not device:
+        device = Device(device_id=device_id, name=device_id, mode='idle')
+        db.session.add(device)
+    
+    # Set device to enrollment mode
+    device.mode = 'enrollment'
+    
     # Create enrollment command
     command = Command(
         device_id=device_id,
@@ -138,7 +147,7 @@ def enroll_student_fingerprint(student_id):
     db.session.commit()
     
     return jsonify({
-        'message': 'Enrollment command created',
+        'message': 'Enrollment command created. Device set to enrollment mode.',
         'command': command.to_dict()
     }), 201
 

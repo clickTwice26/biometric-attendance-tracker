@@ -58,14 +58,15 @@ def poll_commands():
             'has_command': False,
             'message': 'No pending commands'
         }), 200
-    
-    return jsonify({
+    x = {
         'has_command': True,
         'id': command.id,
         'command_type': command.command_type,
         'fingerprint_id': command.fingerprint_id,
         'student_name': command.student_name or 'Unknown'
-    }), 200
+    }
+    print(x)
+    return jsonify(x), 200
 
 @bp.route('/command/<int:command_id>/complete', methods=['POST'])
 def complete_command(command_id):
