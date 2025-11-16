@@ -307,6 +307,11 @@ uint8_t enrollUser() {
 }
 */
 
+// ================== TEMPLATE EXTRACTION HELPER ==================
+// Note: Template data is in sensor's CharBuffer after createModel()
+// We'll use a simpler approach: store model in sensor temporarily, 
+// then use loadModel to read it back
+
 // ================== SCAN AND SEND FINGERPRINT DATA ==================
 bool scanAndSendFingerprint() {
   showLCD("Place finger", "on sensor...");
@@ -346,7 +351,7 @@ bool scanAndSendFingerprint() {
     return false;
   }
   
-  // Search fingerprint in sensor
+  // Search fingerprint in sensor (local matching as fallback)
   p = finger.fingerFastSearch();
   
   if (p == FINGERPRINT_OK) {
@@ -394,7 +399,7 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
   
   String payload = "{\"fingerprint_id\":" + String(fingerprintId) + 
                    ",\"confidence\":" + String(confidence) +
-                   ",\"device_id\":\"" + String(DEVICE_ID) + "}";
+                   ",\"device_id\":\"" + String(DEVICE_ID) + "\"}";
   
   DEBUG_PRINTLN("Sending fingerprint to server: " + payload);
   
@@ -607,6 +612,14 @@ String currentMode = "idle";  // 'idle', 'enrollment', 'attendance'
 String currentClassName = "";  // Current class name
 unsigned long lastModeCheck = 0;
 const unsigned long MODE_CHECK_INTERVAL = 5000; // Check mode every 5 seconds
+
+// Global variable to store template during enrollment
+String lastEnrollmentTemplate = "";
+
+// Forward declarations
+bool executeEnrollCommand(uint8_t id, const String &name);
+bool executeDeleteCommand(uint8_t id);
+void reportCommandCompletion(int commandId, bool success, String templateData = "");
 
 String checkDeviceMode() {
   if (!ensureWiFiConnection()) {
@@ -832,14 +845,18 @@ bool pollForCommands() {
   
   if (commandType == "enroll") {
     showLCD("Enroll: " + studentName, "ID: " + String(fingerprintId));
+    lastEnrollmentTemplate = "";  // Reset
     success = executeEnrollCommand(fingerprintId, studentName);
+    
+    // Report completion with template data
+    reportCommandCompletion(commandId, success, lastEnrollmentTemplate);
   } else if (commandType == "delete") {
     showLCD("Delete: " + studentName, "ID: " + String(fingerprintId));
     success = executeDeleteCommand(fingerprintId);
+    
+    // Report completion without template
+    reportCommandCompletion(commandId, success, "");
   }
-  
-  // Report completion to server
-  reportCommandCompletion(commandId, success);
   
   return true;
 }
@@ -902,16 +919,25 @@ bool executeEnrollCommand(uint8_t id, const String &name) {
     return false;
   }
   
+  // Store in sensor at specified ID (hybrid approach)
+  showLCD("Storing...", "in sensor");
+  
   p = finger.storeModel(id);
   if (p != FINGERPRINT_OK) {
     showLCD("Store FAILED!");
     indicateFailure();
+    DEBUG_PRINTLN("Failed to store template: " + String(p));
     return false;
   }
+  
+  // Note: Template extraction not supported by Adafruit_Fingerprint library
+  // Using hybrid approach: templates stored in sensor, server manages metadata
+  lastEnrollmentTemplate = "";  // Empty since we can't extract
   
   showLCD("SUCCESS!", name);
   indicateSuccess();
   DEBUG_PRINTLN("Enrolled: " + name + " (ID " + String(id) + ")");
+  DEBUG_PRINTLN("Template stored in sensor at ID " + String(id));
   delay(2000);
   
   return true;
@@ -937,21 +963,35 @@ bool executeDeleteCommand(uint8_t id) {
   }
 }
 
-void reportCommandCompletion(int commandId, bool success) {
-  if (!ensureWiFiConnection()) return;
+void reportCommandCompletion(int commandId, bool success, String templateData) {
+  if (!ensureWiFiConnection()) {
+    DEBUG_PRINTLN("WiFi not connected, cannot report completion");
+    return;
+  }
   
   HTTPClient http;
   String url = String(serverURL) + "/api/device/command/" + String(commandId) + "/complete";
   
+  DEBUG_PRINTLN("Reporting to: " + url);
+  
   http.begin(url);
-  http.setTimeout(5000);
+  http.setTimeout(15000);  // Longer timeout for template upload
   http.addHeader("Content-Type", "application/json");
   
   String status = success ? "completed" : "failed";
-  String payload = "{\"status\":\"" + status + "}";
+  String payload = "{\"status\":\"" + status + "\"";
+  
+  // Include template data if provided (for enrollment)
+  if (templateData.length() > 0) {
+    payload += ",\"template\":\"" + templateData + "\"";
+    DEBUG_PRINTLN("Including template data (" + String(templateData.length()) + " chars)");
+  }
+  
+  payload += "}";
   
   DEBUG_PRINTLN("Reporting completion: " + url);
   DEBUG_PRINTLN("Payload: " + payload);
+  DEBUG_PRINTLN("Payload size: " + String(payload.length()) + " bytes");
   
   int httpCode = http.POST(payload);
   
@@ -963,7 +1003,11 @@ void reportCommandCompletion(int commandId, bool success) {
     DEBUG_PRINTLN("Failed to report completion: " + String(httpCode));
     if (httpCode > 0) {
       String response = http.getString();
-      DEBUG_PRINTLN("Error: " + response);
+      DEBUG_PRINTLN("Error response: " + response);
+    } else if (httpCode == -11) {
+      DEBUG_PRINTLN("HTTP Error -11: Connection timeout/refused. Check server availability.");
+    } else {
+      DEBUG_PRINTLN("HTTP client error code: " + String(httpCode));
     }
   }
   
@@ -1041,10 +1085,32 @@ void loop() {
     }
   }
   
-  // --- ALWAYS ACCEPT TOUCH: Send fingerprint data to server (ALL MODES) ---
-  bool touch = (digitalRead(TCH_PIN) == HIGH);
+  // --- FINGER DETECTION: Check for finger on sensor (ALL MODES) ---
+  // Method 1: Check touch pin (if connected)
+  bool touchPin = (digitalRead(TCH_PIN) == HIGH);
+  
+  // Method 2: Check sensor directly for finger presence (more reliable)
+  static unsigned long lastFingerCheck = 0;
+  static bool fingerDetected = false;
+  
+  if (millis() - lastFingerCheck >= 200) { // Check every 200ms
+    lastFingerCheck = millis();
+    int p = finger.getImage();
+    fingerDetected = (p == FINGERPRINT_OK);
+    
+    // Debug: Print status periodically
+    static unsigned long lastDebug = 0;
+    if (millis() - lastDebug >= 10000) { // Every 10 seconds
+      lastDebug = millis();
+      DEBUG_PRINTLN("Finger check: " + String(fingerDetected ? "DETECTED" : "None") + ", Touch pin: " + String(touchPin));
+    }
+  }
+  
+  // Trigger on either touch pin OR finger detected on sensor
+  bool fingerPresent = touchPin || fingerDetected;
+  
   // Improved debouncing: only trigger on rising edge after debounce period
-  if (touch && !lastTouch && (millis() - lastTouchTime > DEBOUNCE)) {
+  if (fingerPresent && !lastTouch && (millis() - lastTouchTime > DEBOUNCE)) {
     DEBUG_PRINTLN("===================================");
     DEBUG_PRINTLN("TOUCH DETECTED - Scanning fingerprint");
     DEBUG_PRINTLN("Current mode: " + currentMode);
@@ -1068,7 +1134,7 @@ void loop() {
     
     lastTouchTime = millis();
   }
-  lastTouch = touch;
+  lastTouch = fingerPresent;
   
   // --- Monitor WiFi connection health ---
   static unsigned long lastWiFiCheck = 0;

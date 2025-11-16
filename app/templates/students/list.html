@@ -100,20 +100,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                 <a href="{{ url_for('frontend.student_edit', student_id=student.id) }}" 
-                                   class="text-indigo-600 hover:text-indigo-900">
+                                   class="text-indigo-600 hover:text-indigo-900" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 
-                                <form method="POST" action="{{ url_for('frontend.student_enroll', student_id=student.id) }}" 
-                                      class="inline" onsubmit="return confirm('Create enrollment command for {{ student.name }}?')">
-                                    <button type="submit" class="text-green-600 hover:text-green-900">
-                                        <i class="fas fa-fingerprint"></i>
-                                    </button>
-                                </form>
+                                <button onclick="showEnrollModal({{ student.id }}, '{{ student.name }}')" 
+                                        class="text-green-600 hover:text-green-900" title="Enroll Fingerprint">
+                                    <i class="fas fa-fingerprint"></i>
+                                </button>
                                 
                                 <form method="POST" action="{{ url_for('frontend.student_delete', student_id=student.id) }}" 
                                       class="inline" onsubmit="return confirm('Are you sure you want to delete {{ student.name }}?')">
-                                    <button type="submit" class="text-red-600 hover:text-red-900">
+                                    <button type="submit" class="text-red-600 hover:text-red-900" title="Delete">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>
@@ -134,4 +132,80 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Enrollment Modal -->
+<div id="enrollModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                    <i class="fas fa-fingerprint text-green-600"></i> Enroll Fingerprint
+                </h3>
+                <button onclick="closeEnrollModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <p class="text-sm text-gray-600 mb-4">
+                Create enrollment command for <strong id="enrollStudentName"></strong>
+            </p>
+            
+            <form id="enrollForm" method="POST">
+                <div class="mb-4">
+                    <label for="enroll_device_id" class="block text-sm font-medium text-gray-700 mb-2">
+                        Select Device
+                    </label>
+                    <select id="enroll_device_id" name="device_id" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="">Choose a device...</option>
+                        {% for device in devices %}
+                            <option value="{{ device.device_id }}">
+                                {{ device.name }} ({{ device.device_id }})
+                                {% if device.status == 'online' %}
+                                    <span class="text-green-600">● Online</span>
+                                {% else %}
+                                    <span class="text-gray-400">○ Offline</span>
+                                {% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">
+                        The device will switch to enrollment mode automatically
+                    </p>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeEnrollModal()"
+                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        <i class="fas fa-fingerprint mr-2"></i> Create Command
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showEnrollModal(studentId, studentName) {
+    document.getElementById('enrollStudentName').textContent = studentName;
+    document.getElementById('enrollForm').action = `/students/${studentId}/enroll`;
+    document.getElementById('enrollModal').classList.remove('hidden');
+}
+
+function closeEnrollModal() {
+    document.getElementById('enrollModal').classList.add('hidden');
+    document.getElementById('enroll_device_id').value = '';
+}
+
+// Close modal when clicking outside
+document.getElementById('enrollModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeEnrollModal();
+    }
+});
+</script>
 {% endblock %}

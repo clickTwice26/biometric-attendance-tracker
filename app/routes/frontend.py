@@ -50,33 +50,35 @@ def students_list():
     
     students = query.order_by(Student.name).all()
     classes = Class.query.filter_by(is_active=True).all()
+    devices = Device.query.all()
     
     return render_template('students/list.html', 
                          students=students, 
                          classes=classes,
+                         devices=devices,
                          selected_class=class_filter,
                          search=search)
 
 @bp.route('/students/add', methods=['GET', 'POST'])
 def student_add():
-    """Add new student"""
+    """Add new student and optionally create enrollment command"""
     if request.method == 'POST':
         name = request.form.get('name')
         email = request.form.get('email')
         student_id = request.form.get('student_id')
-        fingerprint_id = request.form.get('fingerprint_id', type=int)
         class_id = request.form.get('class_id', type=int)
+        enroll_now = request.form.get('enroll_now') == 'on'
+        device_id = request.form.get('device_id')
         
-        if not name or not fingerprint_id:
-            flash('Name and Fingerprint ID are required', 'error')
+        if not name:
+            flash('Student name is required', 'error')
             return redirect(url_for('frontend.student_add'))
         
-        # Check if fingerprint_id already exists
-        existing = Student.query.filter_by(fingerprint_id=fingerprint_id).first()
-        if existing:
-            flash(f'Fingerprint ID {fingerprint_id} is already assigned to {existing.name}', 'error')
-            return redirect(url_for('frontend.student_add'))
+        # Auto-assign next available fingerprint ID
+        max_fp_id = db.session.query(db.func.max(Student.fingerprint_id)).scalar()
+        fingerprint_id = (max_fp_id or 0) + 1
         
+        # Create student record
         student = Student(
             name=name,
             email=email if email else None,
@@ -88,11 +90,33 @@ def student_add():
         db.session.add(student)
         db.session.commit()
         
-        flash(f'Student {name} added successfully!', 'success')
+        # Create enrollment command if requested
+        if enroll_now and device_id:
+            command = Command(
+                device_id=device_id,
+                command_type='enroll',
+                fingerprint_id=fingerprint_id,
+                student_name=name,
+                status='pending'
+            )
+            db.session.add(command)
+            
+            # Set device to enrollment mode
+            device = Device.query.filter_by(device_id=device_id).first()
+            if device:
+                device.mode = 'enrollment'
+            
+            db.session.commit()
+            
+            flash(f'Student {name} added! Enrollment command sent to device. Fingerprint ID: {fingerprint_id}', 'success')
+        else:
+            flash(f'Student {name} added successfully! Fingerprint ID: {fingerprint_id}. Remember to enroll fingerprint.', 'success')
+        
         return redirect(url_for('frontend.students_list'))
     
     classes = Class.query.filter_by(is_active=True).all()
-    return render_template('students/add.html', classes=classes)
+    devices = Device.query.all()
+    return render_template('students/add.html', classes=classes, devices=devices)
 
 @bp.route('/students/<int:student_id>/edit', methods=['GET', 'POST'])
 def student_edit(student_id):
@@ -137,13 +161,17 @@ def student_delete(student_id):
 def student_enroll(student_id):
     """Create enrollment command for student"""
     student = Student.query.get_or_404(student_id)
-    device_id = request.form.get('device_id', 'ESP32-01')
+    device_id = request.form.get('device_id')
     
-    # Get or create device
+    if not device_id:
+        flash('Please select a device for enrollment', 'error')
+        return redirect(url_for('frontend.students_list'))
+    
+    # Get device
     device = Device.query.filter_by(device_id=device_id).first()
     if not device:
-        device = Device(device_id=device_id, name=device_id, mode='idle')
-        db.session.add(device)
+        flash(f'Device {device_id} not found', 'error')
+        return redirect(url_for('frontend.students_list'))
     
     # Set device to enrollment mode
     device.mode = 'enrollment'
@@ -160,7 +188,7 @@ def student_enroll(student_id):
     db.session.add(command)
     db.session.commit()
     
-    flash(f'Enrollment command created for {student.name}. Device set to enrollment mode. Please scan finger on device.', 'success')
+    flash(f'Enrollment command created for {student.name} on device {device.name}. Please scan finger on device.', 'success')
     return redirect(url_for('frontend.students_list'))
 
 @bp.route('/classes')

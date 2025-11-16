@@ -48,17 +48,41 @@
                        placeholder="e.g., 2024001">
             </div>
             
-            <!-- Fingerprint ID -->
-            <div>
-                <label for="fingerprint_id" class="block text-sm font-medium text-gray-700 mb-1">
-                    Fingerprint ID <span class="text-red-500">*</span>
-                </label>
-                <input type="number" id="fingerprint_id" name="fingerprint_id" required min="1" max="255"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                       placeholder="Enter fingerprint slot number (1-255)">
-                <p class="mt-1 text-sm text-gray-500">
-                    <i class="fas fa-info-circle"></i> Choose a unique slot number for fingerprint storage
-                </p>
+            <!-- Fingerprint Enrollment -->
+            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                <div class="flex items-start">
+                    <input type="checkbox" id="enroll_now" name="enroll_now" 
+                           class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                           onchange="toggleEnrollDevice()">
+                    <label for="enroll_now" class="ml-3 block">
+                        <span class="text-sm font-medium text-gray-900">
+                            <i class="fas fa-fingerprint mr-1"></i> Enroll Fingerprint Now
+                        </span>
+                        <p class="text-sm text-gray-600 mt-1">
+                            Create an enrollment command immediately after adding the student. 
+                            The fingerprint ID will be auto-assigned.
+                        </p>
+                    </label>
+                </div>
+                
+                <div id="device_select_section" class="mt-3 hidden">
+                    <label for="device_id" class="block text-sm font-medium text-gray-700 mb-1">
+                        Select Device for Enrollment
+                    </label>
+                    <select id="device_id" name="device_id" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Choose a device...</option>
+                        {% for device in devices %}
+                            <option value="{{ device.device_id }}">
+                                {{ device.name }} ({{ device.device_id }})
+                                {% if device.status != 'online' %} - Offline{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">
+                        The device will switch to enrollment mode automatically
+                    </p>
+                </div>
             </div>
             
             <!-- Class -->
@@ -97,11 +121,29 @@
             </div>
             <div class="ml-3">
                 <p class="text-sm text-blue-700">
-                    After adding the student, you'll need to enroll their fingerprint using the device.
-                    Go to the students list and click the fingerprint icon to create an enrollment command.
+                    <strong>Automatic Fingerprint ID Assignment:</strong> The system will automatically assign 
+                    the next available fingerprint slot number. You can enroll the fingerprint immediately 
+                    or do it later from the students list.
                 </p>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function toggleEnrollDevice() {
+    const checkbox = document.getElementById('enroll_now');
+    const deviceSection = document.getElementById('device_select_section');
+    const deviceSelect = document.getElementById('device_id');
+    
+    if (checkbox.checked) {
+        deviceSection.classList.remove('hidden');
+        deviceSelect.required = true;
+    } else {
+        deviceSection.classList.add('hidden');
+        deviceSelect.required = false;
+        deviceSelect.value = '';
+    }
+}
+</script>
 {% endblock %}

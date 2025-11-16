@@ -11,7 +11,8 @@ class Student(db.Model):
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
     student_id = db.Column(db.String(50), unique=True, nullable=True)
-    fingerprint_id = db.Column(db.Integer, unique=True, nullable=False)
+    fingerprint_id = db.Column(db.Integer, unique=True, nullable=False)  # Kept for reference/ordering
+    fingerprint_template = db.Column(db.LargeBinary, nullable=True)  # Raw 512-byte template data
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

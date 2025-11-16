@@ -70,19 +70,67 @@ def poll_commands():
 
 @bp.route('/command/<int:command_id>/complete', methods=['POST'])
 def complete_command(command_id):
-    """Mark command as completed or failed"""
-    data = request.get_json()
-    status = data.get('status', 'completed')
-    error_message = data.get('error_message')
+    """Mark command as completed or failed (supports template upload for enrollment)"""
+    try:
+        data = request.get_json()
+        if not data:
+            print(f"ERROR: No JSON data received for command {command_id}")
+            return jsonify({'error': 'No JSON data received'}), 400
+        
+        print(f"Command {command_id} completion request: {data}")
+        
+        status = data.get('status', 'completed')
+        error_message = data.get('error_message')
+        template_hex = data.get('template')  # Hex-encoded template data from enrollment
+        
+        command = Command.query.get(command_id)
+        if not command:
+            print(f"ERROR: Command {command_id} not found")
+            return jsonify({'error': 'Command not found'}), 404
+    except Exception as e:
+        print(f"ERROR parsing request for command {command_id}: {str(e)}")
+        return jsonify({'error': f'Request parsing failed: {str(e)}'}), 400
     
-    command = Command.query.get(command_id)
-    if not command:
-        return jsonify({'error': 'Command not found'}), 404
+    # If enrollment completed successfully and template provided, store it
+    # Note: Hybrid approach - templates stored in sensor, metadata in server
+    if status == 'completed' and command.command_type == 'enroll' and template_hex and len(template_hex) > 0:
+        try:
+            from app.models import Student
+            
+            # Convert hex string to bytes
+            template_bytes = bytes.fromhex(template_hex)
+            
+            if len(template_bytes) != 512:
+                print(template_bytes)
+                return jsonify({'error': 'Invalid template size (must be 512 bytes)'}), 400
+            
+            # Find student by fingerprint_id and store template
+            student = Student.query.filter_by(fingerprint_id=command.fingerprint_id).first()
+            if student:
+                student.fingerprint_template = template_bytes
+                db.session.commit()
+                print(f"Stored template for student: {student.name} (ID: {student.id})")
+            else:
+                print(f"Warning: Student not found for fingerprint_id: {command.fingerprint_id}")
+                
+        except Exception as e:
+            print(f"Error storing template: {str(e)}")
+            return jsonify({'error': f'Template storage failed: {str(e)}'}), 400
+    elif status == 'completed' and command.command_type == 'enroll':
+        # Hybrid approach: template stored in sensor, not uploaded to server
+        print(f"Enrollment completed (hybrid mode - template stored in sensor only)")
     
     command.status = status
     command.completed_at = datetime.utcnow()
     if error_message:
         command.error_message = error_message
+    
+    # Auto-reset device mode to idle after command completion
+    if status == 'completed' and command.command_type == 'enroll':
+        device = Device.query.filter_by(device_id=command.device_id).first()
+        if device and device.mode == 'enrollment':
+            device.mode = 'idle'
+            print(f"Device {device.device_id} mode reset to idle after enrollment")
     
     db.session.commit()
     

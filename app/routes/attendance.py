@@ -1,35 +1,93 @@
-"""
-Attendance Routes
-"""
+"""Attendance Routes"""
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 from app import db
 from app.models import Attendance, Student, Device, Class
 
+def match_fingerprint_template(template_bytes):
+    """Match fingerprint template against all stored templates
+    
+    Returns: (student, confidence) or (None, 0) if no match
+    """
+    if len(template_bytes) != 512:
+        return None, 0
+    
+    # Get all students with templates
+    students = Student.query.filter(Student.fingerprint_template.isnot(None)).all()
+    
+    best_match = None
+    best_score = 0
+    
+    for student in students:
+        if not student.fingerprint_template or len(student.fingerprint_template) != 512:
+            continue
+        
+        # Calculate matching score (simple byte comparison)
+        # In production, use proper fingerprint matching algorithm
+        matching_bytes = sum(1 for a, b in zip(template_bytes, student.fingerprint_template) if a == b)
+        score = (matching_bytes / 512) * 100
+        
+        if score > best_score:
+            best_score = score
+            best_match = student
+    
+    # Require at least 40% match (adjust threshold as needed)
+    if best_score >= 40:
+        return best_match, int(best_score)
+    
+    return None, 0
+
 bp = Blueprint('attendance', __name__, url_prefix='/api/attendance')
 
 @bp.route('/verify', methods=['POST'])
 def verify_and_mark_attendance():
-    """Verify fingerprint and mark attendance"""
+    """Verify fingerprint and mark attendance (supports both ID-based and template-based matching)"""
     data = request.get_json()
-    fingerprint_id = data.get('fingerprint_id')
+    fingerprint_id = data.get('fingerprint_id')  # Legacy: for backward compatibility
+    template_hex = data.get('template')  # New: hex-encoded template data
     confidence = data.get('confidence')
     device_id = data.get('device_id', 'ESP32-01')
     
-    if not fingerprint_id:
-        return jsonify({
-            'status': 'error',
-            'message': 'fingerprint_id is required'
-        }), 400
+    student = None
+    match_confidence = confidence if confidence else 0
     
-    # Find student by fingerprint
-    student = Student.query.filter_by(fingerprint_id=fingerprint_id).first()
-    if not student:
+    # Method 1: Server-side template matching (preferred)
+    if template_hex:
+        try:
+            # Convert hex string to bytes
+            template_bytes = bytes.fromhex(template_hex)
+            
+            # Find matching student by comparing templates
+            student, match_confidence = match_fingerprint_template(template_bytes)
+            
+            if not student:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Fingerprint not recognized',
+                    'confidence': 0
+                }), 404
+                
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'Template processing error: {str(e)}'
+            }), 400
+    
+    # Method 2: Legacy ID-based lookup (for backward compatibility)
+    elif fingerprint_id:
+        student = Student.query.filter_by(fingerprint_id=fingerprint_id).first()
+        if not student:
+            return jsonify({
+                'status': 'error',
+                'message': 'Student not found',
+                'fingerprint_id': fingerprint_id
+            }), 404
+    
+    else:
         return jsonify({
             'status': 'error',
-            'message': 'Student not found',
-            'fingerprint_id': fingerprint_id
-        }), 404
+            'message': 'Either fingerprint_id or template is required'
+        }), 400
     
     # Get device info
     device = Device.query.filter_by(device_id=device_id).first()
