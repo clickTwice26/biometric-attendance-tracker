@@ -53,13 +53,61 @@
             
             <!-- Schedule -->
             <div>
-                <label for="schedule" class="block text-sm font-medium text-gray-700 mb-1">
-                    Schedule
+                <label class="block text-sm font-medium text-gray-700 mb-3">
+                    Class Schedule
                 </label>
-                <input type="text" id="schedule" name="schedule" 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                       placeholder="e.g., Mon/Wed 10:00-11:30">
+                <div class="space-y-3 bg-gray-50 p-4 rounded-md">
+                    {% set days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+                    {% set day_labels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                    
+                    {% for i in range(days|length) %}
+                    {% set day = days[i] %}
+                    {% set label = day_labels[i] %}
+                    <div class="flex items-center space-x-4 bg-white p-3 rounded border border-gray-200">
+                        <div class="flex items-center w-32">
+                            <input type="checkbox" 
+                                   id="schedule_{{ day }}_enabled" 
+                                   name="schedule_{{ day }}_enabled"
+                                   onchange="toggleScheduleDay('{{ day }}')"
+                                   class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                            <label for="schedule_{{ day }}_enabled" class="ml-2 text-sm font-medium text-gray-700">
+                                {{ label }}
+                            </label>
+                        </div>
+                        <div class="flex items-center space-x-2 flex-1">
+                            <input type="time" 
+                                   id="schedule_{{ day }}_start" 
+                                   name="schedule_{{ day }}_start"
+                                   disabled
+                                   class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 schedule-time-{{ day }}">
+                            <span class="text-gray-500">to</span>
+                            <input type="time" 
+                                   id="schedule_{{ day }}_end" 
+                                   name="schedule_{{ day }}_end"
+                                   disabled
+                                   class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 schedule-time-{{ day }}">
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="mt-2 text-xs text-gray-500">
+                    <i class="fas fa-info-circle"></i> Select days and set time ranges for each class session. Only one session per day is allowed.
+                </p>
             </div>
+            
+            <script>
+                function toggleScheduleDay(day) {
+                    const checkbox = document.getElementById(`schedule_${day}_enabled`);
+                    const timeInputs = document.querySelectorAll(`.schedule-time-${day}`);
+                    
+                    timeInputs.forEach(input => {
+                        input.disabled = !checkbox.checked;
+                        if (!checkbox.checked) {
+                            input.value = '';
+                        }
+                    });
+                }
+            </script>
             
             <!-- Description -->
             <div>

@@ -3,6 +3,7 @@ Device Model
 """
 from datetime import datetime
 from app import db
+from app.utils.timezone import get_naive_now
 
 class Device(db.Model):
     __tablename__ = 'devices'

@@ -1,10 +1,11 @@
 """
-Frontend Routes - Dashboard and Web Interface
+Frontend Routes
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from datetime import datetime, timedelta
+from flask import Blueprint, render_template, request, redirect, url_for, flash
+from datetime import datetime, time, timedelta
 from app import db
-from app.models import Student, Class, Device, Attendance, Command
+from app.models import Student, Attendance, Device, Command, Class
+from app.utils.timezone import get_naive_now, get_today_start
 
 bp = Blueprint('frontend', __name__)
 
@@ -17,7 +18,7 @@ def index():
     total_devices = Device.query.count()
     
     # Today's attendance
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = get_today_start()
     today_attendance = Attendance.query.filter(Attendance.timestamp >= today_start).count()
     
     # Recent attendance records
@@ -200,12 +201,14 @@ def classes_list():
 @bp.route('/classes/add', methods=['GET', 'POST'])
 def class_add():
     """Add new class"""
+    from app.models.class_schedule import ClassSchedule
+    from datetime import time
+    
     if request.method == 'POST':
         name = request.form.get('name')
         code = request.form.get('code')
         description = request.form.get('description')
         teacher_name = request.form.get('teacher_name')
-        schedule = request.form.get('schedule')
         
         if not name:
             flash('Class name is required', 'error')
@@ -222,14 +225,46 @@ def class_add():
             code=code if code else None,
             description=description if description else None,
             teacher_name=teacher_name if teacher_name else None,
-            schedule=schedule if schedule else None,
             is_active=True
         )
         
         db.session.add(class_obj)
+        db.session.flush()  # Get the class ID before adding schedules
+        
+        # Process schedules
+        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        schedule_added = False
+        for day in days:
+            if request.form.get(f'schedule_{day}_enabled') == 'on':
+                start_time_str = request.form.get(f'schedule_{day}_start')
+                end_time_str = request.form.get(f'schedule_{day}_end')
+                
+                if start_time_str and end_time_str:
+                    try:
+                        start_time = time.fromisoformat(start_time_str)
+                        end_time = time.fromisoformat(end_time_str)
+                        
+                        # Validate end time is after start time
+                        if end_time > start_time:
+                            schedule = ClassSchedule(
+                                class_id=class_obj.id,
+                                day_of_week=day,
+                                start_time=start_time,
+                                end_time=end_time
+                            )
+                            db.session.add(schedule)
+                            schedule_added = True
+                        else:
+                            flash(f'Error: End time must be after start time for {day.capitalize()}', 'error')
+                    except ValueError:
+                        flash(f'Error: Invalid time format for {day.capitalize()}', 'error')
+        
         db.session.commit()
         
-        flash(f'Class {name} added successfully!', 'success')
+        if schedule_added:
+            flash(f'Class {name} added successfully with schedule!', 'success')
+        else:
+            flash(f'Class {name} added successfully! (No schedule set)', 'success')
         return redirect(url_for('frontend.classes_list'))
     
     return render_template('classes/add.html')
@@ -237,6 +272,9 @@ def class_add():
 @bp.route('/classes/<int:class_id>/edit', methods=['GET', 'POST'])
 def class_edit(class_id):
     """Edit class"""
+    from app.models.class_schedule import ClassSchedule
+    from datetime import time
+    
     class_obj = Class.query.get_or_404(class_id)
     
     if request.method == 'POST':
@@ -244,8 +282,36 @@ def class_edit(class_id):
         class_obj.code = request.form.get('code') or None
         class_obj.description = request.form.get('description') or None
         class_obj.teacher_name = request.form.get('teacher_name') or None
-        class_obj.schedule = request.form.get('schedule') or None
         class_obj.is_active = request.form.get('is_active') == 'on'
+        
+        # Delete existing schedules
+        ClassSchedule.query.filter_by(class_id=class_obj.id).delete()
+        
+        # Process new schedules
+        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        for day in days:
+            if request.form.get(f'schedule_{day}_enabled') == 'on':
+                start_time_str = request.form.get(f'schedule_{day}_start')
+                end_time_str = request.form.get(f'schedule_{day}_end')
+                
+                if start_time_str and end_time_str:
+                    try:
+                        start_time = time.fromisoformat(start_time_str)
+                        end_time = time.fromisoformat(end_time_str)
+                        
+                        # Validate end time is after start time
+                        if end_time > start_time:
+                            schedule = ClassSchedule(
+                                class_id=class_obj.id,
+                                day_of_week=day,
+                                start_time=start_time,
+                                end_time=end_time
+                            )
+                            db.session.add(schedule)
+                        else:
+                            flash(f'Error: End time must be after start time for {day.capitalize()}', 'error')
+                    except ValueError:
+                        flash(f'Error: Invalid time format for {day.capitalize()}', 'error')
         
         db.session.commit()
         flash(f'Class {class_obj.name} updated successfully!', 'success')
@@ -355,7 +421,7 @@ def reports():
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
     else:
         # Default to current month
-        today = datetime.utcnow()
+        today = get_naive_now()
         start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         end_date = today + timedelta(days=1)
         start_date_str = start_date.strftime('%Y-%m-%d')

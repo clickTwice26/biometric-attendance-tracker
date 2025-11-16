@@ -31,10 +31,25 @@ def create_app(config_name='default'):
     # Frontend blueprint
     app.register_blueprint(frontend.bp)
     
-    # Add datetime to template context
+    # Add datetime to template context and timezone filter
     @app.context_processor
     def inject_datetime():
         return {'datetime': datetime}
+    
+    # Add Dhaka timezone filter for templates
+    @app.template_filter('dhaka_time')
+    def dhaka_time_filter(dt):
+        """Format datetime in Asia/Dhaka timezone"""
+        if dt is None:
+            return ''
+        from app.utils.timezone import DHAKA_TZ
+        import pytz
+        # If datetime is naive, assume it's already in Dhaka time
+        if dt.tzinfo is None:
+            return dt.strftime('%b %d, %Y %I:%M %p')
+        # Otherwise convert to Dhaka time
+        dhaka_dt = dt.astimezone(DHAKA_TZ)
+        return dhaka_dt.strftime('%b %d, %Y %I:%M %p')
     
     # Create database tables
     with app.app_context():

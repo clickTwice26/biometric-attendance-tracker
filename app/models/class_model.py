@@ -3,6 +3,7 @@ Class Model
 """
 from datetime import datetime
 from app import db
+from app.utils.timezone import get_naive_now
 
 class Class(db.Model):
     __tablename__ = 'classes'
@@ -14,7 +15,7 @@ class Class(db.Model):
     teacher_name = db.Column(db.String(100), nullable=True)
     schedule = db.Column(db.String(200), nullable=True)  # e.g., "Mon/Wed 10:00-11:30"
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_naive_now)
     
     # Relationships
     students = db.relationship('Student', backref='class_obj', lazy=True)
@@ -28,7 +29,8 @@ class Class(db.Model):
             'code': self.code,
             'description': self.description,
             'teacher_name': self.teacher_name,
-            'schedule': self.schedule,
+            'schedule': self.schedule,  # Legacy field
+            'schedules': [s.to_dict() for s in self.schedules] if hasattr(self, 'schedules') else [],
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'student_count': len(self.students) if self.students else 0

@@ -1,8 +1,7 @@
-"""
-Attendance Model
-"""
+"""Attendance Model"""
 from datetime import datetime
 from app import db
+from app.utils.timezone import get_naive_now
 
 class Attendance(db.Model):
     __tablename__ = 'attendance'
@@ -12,8 +11,9 @@ class Attendance(db.Model):
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=True)
     device_id = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), default='present')  # present, absent, late
-    confidence = db.Column(db.Integer, nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    confidence = db.Column(db.Float, nullable=True)
+    timestamp = db.Column(db.DateTime, default=get_naive_now)
+    device_id = db.Column(db.String(50), db.ForeignKey('devices.device_id'), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     
     def to_dict(self):

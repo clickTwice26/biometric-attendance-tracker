@@ -3,6 +3,7 @@ Command Model for Device Commands
 """
 from datetime import datetime
 from app import db
+from app.utils.timezone import get_naive_now
 
 class Command(db.Model):
     __tablename__ = 'commands'
@@ -13,7 +14,7 @@ class Command(db.Model):
     fingerprint_id = db.Column(db.Integer, nullable=False)
     student_name = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), default='pending')  # pending, completed, failed
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_naive_now)
     completed_at = db.Column(db.DateTime, nullable=True)
     error_message = db.Column(db.Text, nullable=True)
     

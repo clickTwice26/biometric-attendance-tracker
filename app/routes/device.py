@@ -2,9 +2,10 @@
 Device Management Routes
 """
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, timedelta
 from app import db
 from app.models import Device, Command, Class
+from app.utils.timezone import get_naive_now
 
 bp = Blueprint('device', __name__, url_prefix='/api/device')
 
@@ -22,7 +23,7 @@ def get_device_mode():
         return jsonify({'error': 'Device not found'}), 404
     
     # Update last seen
-    device.last_seen = datetime.utcnow()
+    device.last_seen = get_naive_now()
     db.session.commit()
     
     response = {
@@ -121,7 +122,7 @@ def complete_command(command_id):
         print(f"Enrollment completed (hybrid mode - template stored in sensor only)")
     
     command.status = status
-    command.completed_at = datetime.utcnow()
+    command.completed_at = get_naive_now()
     if error_message:
         command.error_message = error_message
     

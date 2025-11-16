@@ -1,8 +1,11 @@
-"""Attendance Routes"""
+"""
+Attendance Routes
+"""
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 from app import db
 from app.models import Attendance, Student, Device, Class
+from app.utils.timezone import get_naive_now
 
 def match_fingerprint_template(template_bytes):
     """Match fingerprint template against all stored templates
@@ -100,8 +103,8 @@ def verify_and_mark_attendance():
         class_obj = Class.query.get(class_id)
         class_name = class_obj.name if class_obj else None
     
-    # Check for duplicate attendance in last 5 minutes
-    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
+    # Check for duplicate attendance (within 5 minutes)
+    five_minutes_ago = get_naive_now() - timedelta(minutes=5)
     recent_attendance = Attendance.query.filter(
         Attendance.student_id == student.id,
         Attendance.timestamp >= five_minutes_ago

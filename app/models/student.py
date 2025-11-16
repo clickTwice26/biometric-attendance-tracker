@@ -3,6 +3,7 @@ Student Model
 """
 from datetime import datetime
 from app import db
+from app.utils.timezone import get_naive_now
 
 class Student(db.Model):
     __tablename__ = 'students'
@@ -14,11 +15,21 @@ class Student(db.Model):
     fingerprint_id = db.Column(db.Integer, unique=True, nullable=False)  # Kept for reference/ordering
     fingerprint_template = db.Column(db.LargeBinary, nullable=True)  # Raw 512-byte template data
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_naive_now)
+    updated_at = db.Column(db.DateTime, default=get_naive_now, onupdate=get_naive_now)
     
     # Relationships
     attendances = db.relationship('Attendance', backref='student', lazy=True, cascade='all, delete-orphan')
+    
+    def has_verified_fingerprint(self):
+        """Check if student has a completed fingerprint enrollment"""
+        from app.models.command import Command
+        completed_enrollment = Command.query.filter_by(
+            fingerprint_id=self.fingerprint_id,
+            command_type='enroll',
+            status='completed'
+        ).first()
+        return completed_enrollment is not None
     
     def to_dict(self):
         """Convert model to dictionary"""

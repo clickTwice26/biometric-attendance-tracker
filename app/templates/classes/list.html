@@ -48,9 +48,22 @@
                             </p>
                         {% endif %}
                         
-                        {% if class_obj.schedule %}
-                            <p class="text-sm text-gray-600 mb-2">
-                                <i class="fas fa-clock"></i> {{ class_obj.schedule }}
+                        {% if class_obj.schedules %}
+                            <div class="text-sm text-gray-600 mb-2">
+                                <i class="fas fa-clock"></i> 
+                                <span class="font-medium">Schedule:</span>
+                                <div class="ml-5 mt-1 space-y-1">
+                                    {% for schedule in class_obj.schedules|sort(attribute='day_of_week') %}
+                                    <div class="text-xs">
+                                        <span class="inline-block w-20 font-medium">{{ schedule.day_of_week|capitalize }}:</span>
+                                        {{ schedule.start_time.strftime('%I:%M %p') }} - {{ schedule.end_time.strftime('%I:%M %p') }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="text-sm text-gray-400 mb-2">
+                                <i class="fas fa-clock"></i> No schedule set
                             </p>
                         {% endif %}
                         

@@ -3,6 +3,7 @@ Health Check Routes
 """
 from flask import Blueprint, jsonify
 from datetime import datetime
+from app.utils.timezone import get_naive_now
 
 bp = Blueprint('health', __name__, url_prefix='/api')
 
@@ -12,5 +13,5 @@ def health_check():
     return jsonify({
         'status': 'ok',
         'message': 'Fingerprint Attendance System API is running',
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': get_naive_now().isoformat()
     }), 200
