@@ -44,7 +44,7 @@ bp = Blueprint('attendance', __name__, url_prefix='/api/attendance')
 
 @bp.route('/verify', methods=['POST'])
 def verify_and_mark_attendance():
-    """Verify fingerprint and mark attendance (supports both ID-based and template-based matching)"""
+    """Verify fingerprint and mark attendance with entry/exit tracking and class validation"""
     data = request.get_json()
     fingerprint_id = data.get('fingerprint_id')  # Legacy: for backward compatibility
     template_hex = data.get('template')  # New: hex-encoded template data
@@ -92,55 +92,117 @@ def verify_and_mark_attendance():
             'message': 'Either fingerprint_id or template is required'
         }), 400
     
-    # Get device info
-    device = Device.query.filter_by(device_id=device_id).first()
+    # STEP 1: Check if there is a currently running class
+    from app.routes.frontend import get_current_running_class
+    import logging
     
-    # Check if device is in attendance mode with an active class
-    class_id = None
-    class_name = None
-    if device and device.mode == 'attendance' and device.current_class_id:
-        class_id = device.current_class_id
-        class_obj = Class.query.get(class_id)
-        class_name = class_obj.name if class_obj else None
+    current_class = get_current_running_class()
     
-    # Check for duplicate attendance (within 5 minutes)
-    five_minutes_ago = get_naive_now() - timedelta(minutes=5)
+    if not current_class:
+        logging.warning(f"Attendance attempt by {student.name} ({student.student_id}) - No class running")
+        return jsonify({
+            'status': 'error',
+            'message': 'No class running',
+            'details': 'Attendance can only be marked during scheduled class times',
+            'student_name': student.name
+        }), 400
+    
+    class_id = current_class['id']
+    class_name = current_class['name']
+    
+    # STEP 2: Check for recent attendance (within 3 minutes)
+    now = get_naive_now()
+    three_minutes_ago = now - timedelta(minutes=3)
+    
     recent_attendance = Attendance.query.filter(
         Attendance.student_id == student.id,
-        Attendance.timestamp >= five_minutes_ago
+        Attendance.class_id == class_id,
+        Attendance.timestamp >= three_minutes_ago
+    ).order_by(Attendance.timestamp.desc()).first()
+    
+    # STEP 3: Handle entry/exit logic
+    if recent_attendance:
+        # Within 3 minutes - ignore the fingerprint scan
+        time_diff = (now - recent_attendance.timestamp).total_seconds() / 60
+        return jsonify({
+            'status': 'cooldown',
+            'message': f'Please wait {int(3 - time_diff)} more minute(s)',
+            'details': 'You must wait 3 minutes between entry and exit',
+            'student_name': student.name,
+            'last_scan': recent_attendance.timestamp.isoformat()
+        }), 400
+    
+    # Check if there's an existing attendance record for this class today without exit
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    existing_entry = Attendance.query.filter(
+        Attendance.student_id == student.id,
+        Attendance.class_id == class_id,
+        Attendance.timestamp >= today_start,
+        Attendance.exit_time.is_(None)
     ).first()
     
-    if recent_attendance:
+    if existing_entry:
+        # This is an EXIT scan (after 3 minutes cooldown has passed)
+        existing_entry.exit_time = now
+        
+        # Calculate duration in minutes
+        if existing_entry.entry_time:
+            duration = (now - existing_entry.entry_time).total_seconds() / 60
+            existing_entry.duration_minutes = int(duration)
+        
+        existing_entry.notes = f"Exited at {now.strftime('%H:%M:%S')}"
+        
+        db.session.commit()
+        
         return jsonify({
-            'status': 'duplicate',
-            'message': 'Attendance already marked recently',
-            'name': student.name,
-            'timestamp': recent_attendance.timestamp.isoformat()
+            'status': 'exit',
+            'message': f'{student.name} exited from {class_name}',
+            'student_name': student.name,
+            'class_name': class_name,
+            'entry_time': existing_entry.entry_time.strftime('%H:%M:%S'),
+            'exit_time': now.strftime('%H:%M:%S'),
+            'duration_minutes': existing_entry.duration_minutes,
+            'attendance_id': existing_entry.id
         }), 200
     
-    # Create attendance record
+    # This is an ENTRY scan (first scan or new session)
+    # Determine if student is late
+    class_start_time = datetime.strptime(current_class['start_time'], '%H:%M').time()
+    current_time = now.time()
+    
+    status = 'present'
+    if current_time > class_start_time:
+        # Late if more than 5 minutes after class start
+        time_diff_minutes = (datetime.combine(datetime.today(), current_time) - 
+                            datetime.combine(datetime.today(), class_start_time)).total_seconds() / 60
+        if time_diff_minutes > 5:
+            status = 'late'
+    
+    # Create new attendance record for ENTRY
     attendance = Attendance(
         student_id=student.id,
         class_id=class_id,
         device_id=device_id,
-        status='present',
-        confidence=confidence
+        status=status,
+        confidence=match_confidence,
+        timestamp=now,
+        entry_time=now,
+        notes=f"Entered at {now.strftime('%H:%M:%S')}"
     )
     
     db.session.add(attendance)
     db.session.commit()
     
-    message = f"Attendance marked for {student.name}"
-    if class_name:
-        message += f" in {class_name}"
-    
     return jsonify({
-        'status': 'success',
-        'message': message,
-        'name': student.name,
-        'student_id': student.id,
+        'status': 'entry',
+        'message': f'{student.name} entered {class_name}',
+        'student_name': student.name,
+        'student_id': student.student_id,
         'class_name': class_name,
-        'timestamp': attendance.timestamp.isoformat()
+        'entry_time': now.strftime('%H:%M:%S'),
+        'attendance_status': status,
+        'confidence': match_confidence,
+        'attendance_id': attendance.id
     }), 200
 
 @bp.route('/mark', methods=['POST'])

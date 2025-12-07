@@ -8,9 +8,9 @@
 #include <esp_wifi.h>  // Required for esp_wifi_set_mac()
 
 // ================== WIFI & SERVER CREDENTIALS ==================
-const char* ssid = "5hagato";
+const char* ssid = "5hagat0-Private";
 const char* password = "1292?5hagat0";
-const char* serverURL = "http://192.168.0.113:8888"; // Your Flask server IP:port
+const char* serverURL = "http://10.217.44.113:8888";
 // Note: If running locally, use your computer's local IP (not 127.0.0.1)
 // Find IP with: hostname -I (Linux/Mac) or ipconfig (Windows)
 
@@ -496,8 +496,52 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
     DEBUG_PRINTLN("Parsed name: " + studentName);
     DEBUG_PRINTLN("Parsed message: " + message);
     
-    // Handle success response
-    if (status == "success") {
+    // Handle ENTRY response
+    if (status == "entry") {
+      if (studentName.length() > 0) {
+        String displayName = studentName.substring(0, min(16, (int)studentName.length()));
+        showLCD("ENTRY: Welcome!", displayName);
+      } else {
+        showLCD("Entry Marked", "Welcome!");
+      }
+      indicateSuccess();
+      beep(50);
+      delay(100);
+      beep(50);
+      delay(2000);
+      return true;
+    }
+    // Handle EXIT response
+    else if (status == "exit") {
+      if (studentName.length() > 0) {
+        String displayName = studentName.substring(0, min(16, (int)studentName.length()));
+        showLCD("EXIT: Goodbye!", displayName);
+      } else {
+        showLCD("Exit Marked", "See you next!");
+      }
+      indicateSuccess();
+      beep(100);
+      delay(2000);
+      return true;
+    }
+    // Handle COOLDOWN response (within 3 minutes)
+    else if (status == "cooldown") {
+      if (message.length() > 0) {
+        String line1 = message.substring(0, min(16, (int)message.length()));
+        String line2 = "";
+        if (message.length() > 16) {
+          line2 = message.substring(16, min(32, (int)message.length()));
+        }
+        showLCD(line1, line2);
+      } else {
+        showLCD("Wait 3 minutes", "Try again later");
+      }
+      indicateFailure();
+      delay(2000);
+      return false;
+    }
+    // Handle success response (legacy)
+    else if (status == "success") {
       if (studentName.length() > 0) {
         String displayName = studentName.substring(0, min(16, (int)studentName.length()));
         showLCD("Welcome!", displayName);
@@ -526,7 +570,7 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
       delay(2000);
       return true;
     }
-    // Handle error response
+    // Handle error response (including "No class running")
     else if (status == "error") {
       if (message.length() > 0) {
         String line1 = message.substring(0, min(16, (int)message.length()));
@@ -539,7 +583,7 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
         showLCD("Error", "Contact teacher");
       }
       indicateFailure();
-      delay(2000);
+      delay(3000); // Show error longer
       return false;
     }
     // Unknown status
@@ -558,6 +602,43 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
     showLCD("Not registered", "Contact teacher");
     indicateFailure();
     delay(2000);
+    return false;
+  }
+  // Handle 400 errors (like no class running, cooldown, etc.)
+  else if (httpCode == 400) {
+    String response = http.getString();
+    http.end();
+    DEBUG_PRINTLN("Client error (400): " + response);
+    
+    // Try to parse the message from error response
+    int msgPos = response.indexOf("\"message\"");
+    String message = "";
+    if (msgPos > -1 && msgPos < response.length() - 12) {
+      int colonPos = response.indexOf(":", msgPos);
+      if (colonPos > -1 && colonPos < response.length() - 3) {
+        int openQuotePos = response.indexOf("\"", colonPos);
+        if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+          int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+          if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+            message = response.substring(openQuotePos + 1, closeQuotePos);
+          }
+        }
+      }
+    }
+    
+    // Display the message or default error
+    if (message.length() > 0) {
+      String line1 = message.substring(0, min(16, (int)message.length()));
+      String line2 = "";
+      if (message.length() > 16) {
+        line2 = message.substring(16, min(32, (int)message.length()));
+      }
+      showLCD(line1, line2);
+    } else {
+      showLCD("Error 400", "Try again");
+    }
+    indicateFailure();
+    delay(3000);
     return false;
   }
   // Handle other HTTP errors

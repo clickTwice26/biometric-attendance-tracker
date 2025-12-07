@@ -12,7 +12,10 @@ class Attendance(db.Model):
     device_id = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), default='present')  # present, absent, late
     confidence = db.Column(db.Float, nullable=True)
-    timestamp = db.Column(db.DateTime, default=get_naive_now)
+    timestamp = db.Column(db.DateTime, default=get_naive_now)  # Entry time
+    entry_time = db.Column(db.DateTime, nullable=True)  # When student entered
+    exit_time = db.Column(db.DateTime, nullable=True)  # When student exited
+    duration_minutes = db.Column(db.Integer, nullable=True)  # Time spent in class
     device_id = db.Column(db.String(50), db.ForeignKey('devices.device_id'), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     
@@ -28,6 +31,9 @@ class Attendance(db.Model):
             'status': self.status,
             'confidence': self.confidence,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'entry_time': self.entry_time.isoformat() if self.entry_time else None,
+            'exit_time': self.exit_time.isoformat() if self.exit_time else None,
+            'duration_minutes': self.duration_minutes,
             'notes': self.notes
         }
     

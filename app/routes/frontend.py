@@ -1,10 +1,10 @@
 """
 Frontend Routes
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime, time, timedelta
 from app import db
-from app.models import Student, Attendance, Device, Command, Class
+from app.models import Student, Attendance, Device, Command, Class, ClassSchedule
 from app.utils.timezone import get_naive_now, get_today_start
 
 bp = Blueprint('frontend', __name__)
@@ -27,13 +27,88 @@ def index():
     # Active devices
     devices = Device.query.all()
     
+    # Get current running class
+    current_class = get_current_running_class()
+    
     return render_template('dashboard/index.html',
                          total_students=total_students,
                          total_classes=total_classes,
                          total_devices=total_devices,
                          today_attendance=today_attendance,
                          recent_attendance=recent_attendance,
-                         devices=devices)
+                         devices=devices,
+                         current_class=current_class)
+
+def get_current_running_class():
+    """Get the currently running class based on schedule"""
+    now = get_naive_now()
+    current_time = now.time()
+    day_of_week = now.strftime('%A').lower()
+    
+    # Find active schedules for today
+    schedules = ClassSchedule.query.filter_by(day_of_week=day_of_week).all()
+    
+    for schedule in schedules:
+        if schedule.start_time <= current_time <= schedule.end_time:
+            class_obj = Class.query.get(schedule.class_id)
+            if class_obj and class_obj.is_active:
+                return {
+                    'id': class_obj.id,
+                    'name': class_obj.name,
+                    'code': class_obj.code,
+                    'teacher_name': class_obj.teacher_name,
+                    'start_time': schedule.start_time.strftime('%H:%M'),
+                    'end_time': schedule.end_time.strftime('%H:%M')
+                }
+    
+    return None
+
+@bp.route('/api/current-class')
+def api_current_class():
+    """API endpoint for current running class"""
+    current_class = get_current_running_class()
+    return jsonify(current_class if current_class else {})
+
+@bp.route('/api/recent-attendance')
+def api_recent_attendance():
+    """API endpoint for recent attendance records (for real-time updates)"""
+    last_id = request.args.get('last_id', 0, type=int)
+    
+    # Get attendance records newer than last_id
+    new_attendance = Attendance.query.filter(
+        Attendance.id > last_id
+    ).order_by(Attendance.timestamp.desc()).limit(10).all()
+    
+    records = []
+    for att in new_attendance:
+        # Determine if this is entry or exit based on exit_time
+        action = 'exit' if att.exit_time else 'entry'
+        display_time = att.exit_time.strftime('%H:%M:%S') if att.exit_time else att.entry_time.strftime('%H:%M:%S') if att.entry_time else att.timestamp.strftime('%H:%M:%S')
+        
+        records.append({
+            'id': att.id,
+            'student_name': att.student.name,
+            'student_id': att.student.student_id,
+            'class_name': att.class_obj.name if att.class_obj else 'N/A',
+            'timestamp': display_time,
+            'status': att.status,
+            'action': action,
+            'duration_minutes': att.duration_minutes if att.exit_time else None
+        })
+    
+    return jsonify(records)
+    
+    results = []
+    for att in new_attendance:
+        results.append({
+            'id': att.id,
+            'student_name': att.student.name if att.student else 'Unknown',
+            'class_name': att.class_obj.name if att.class_obj else 'General',
+            'timestamp': att.timestamp.strftime('%H:%M:%S'),
+            'status': att.status
+        })
+    
+    return jsonify(results)
 
 @bp.route('/students')
 def students_list():
@@ -231,7 +306,7 @@ def class_add():
         db.session.add(class_obj)
         db.session.flush()  # Get the class ID before adding schedules
         
-        # Process schedules
+        # Process schedules - All times are in Asia/Dhaka timezone
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
         schedule_added = False
         for day in days:
@@ -241,6 +316,7 @@ def class_add():
                 
                 if start_time_str and end_time_str:
                     try:
+                        # Parse time strings - these represent Asia/Dhaka timezone
                         start_time = time.fromisoformat(start_time_str)
                         end_time = time.fromisoformat(end_time_str)
                         
@@ -287,7 +363,7 @@ def class_edit(class_id):
         # Delete existing schedules
         ClassSchedule.query.filter_by(class_id=class_obj.id).delete()
         
-        # Process new schedules
+        # Process new schedules - All times are in Asia/Dhaka timezone
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
         for day in days:
             if request.form.get(f'schedule_{day}_enabled') == 'on':
@@ -296,6 +372,7 @@ def class_edit(class_id):
                 
                 if start_time_str and end_time_str:
                     try:
+                        # Parse time strings - these represent Asia/Dhaka timezone
                         start_time = time.fromisoformat(start_time_str)
                         end_time = time.fromisoformat(end_time_str)
                         

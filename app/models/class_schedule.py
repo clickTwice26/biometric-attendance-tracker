@@ -6,14 +6,15 @@ from app import db
 from app.utils.timezone import get_naive_now
 
 class ClassSchedule(db.Model):
+    """Class schedule model - All times are stored in Asia/Dhaka timezone"""
     __tablename__ = 'class_schedules'
     
     id = db.Column(db.Integer, primary_key=True)
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
     day_of_week = db.Column(db.String(10), nullable=False)  # monday, tuesday, wednesday, etc.
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
-    created_at = db.Column(db.DateTime, default=get_naive_now)
+    start_time = db.Column(db.Time, nullable=False)  # Time in Asia/Dhaka timezone
+    end_time = db.Column(db.Time, nullable=False)  # Time in Asia/Dhaka timezone
+    created_at = db.Column(db.DateTime, default=get_naive_now)  # Stored as Asia/Dhaka time (timezone-naive)
     
     # Relationships
     class_obj = db.relationship('Class', backref=db.backref('schedules', lazy=True, cascade='all, delete-orphan'))

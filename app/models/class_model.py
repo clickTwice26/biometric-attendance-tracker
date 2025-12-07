@@ -6,6 +6,7 @@ from app import db
 from app.utils.timezone import get_naive_now
 
 class Class(db.Model):
+    """Class model - All datetime fields are stored in Asia/Dhaka timezone (timezone-naive)"""
     __tablename__ = 'classes'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -13,9 +14,9 @@ class Class(db.Model):
     code = db.Column(db.String(50), unique=True, nullable=True)
     description = db.Column(db.Text, nullable=True)
     teacher_name = db.Column(db.String(100), nullable=True)
-    schedule = db.Column(db.String(200), nullable=True)  # e.g., "Mon/Wed 10:00-11:30"
+    schedule = db.Column(db.String(200), nullable=True)  # e.g., "Mon/Wed 10:00-11:30" (Legacy field)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=get_naive_now)
+    created_at = db.Column(db.DateTime, default=get_naive_now)  # Stored as Asia/Dhaka time (timezone-naive)
     
     # Relationships
     students = db.relationship('Student', backref='class_obj', lazy=True)

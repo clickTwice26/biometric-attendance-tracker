@@ -9,6 +9,37 @@
 {% block content %}
 <div class="space-y-6">
     
+    <!-- Current Running Class Card -->
+    <div id="currentClassCard" class="{% if current_class %}bg-gradient-to-r from-indigo-500 to-purple-600{% else %}bg-gray-300{% endif %} shadow-lg rounded-xl overflow-hidden transition-all duration-500">
+        <div class="p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <i class="fas fa-clock text-3xl"></i>
+                        <h2 class="text-2xl font-bold">Current Class</h2>
+                    </div>
+                    <div id="currentClassContent">
+                        {% if current_class %}
+                        <p class="text-xl font-semibold mb-1">{{ current_class.name }}</p>
+                        <p class="text-sm opacity-90">{{ current_class.code }} • {{ current_class.teacher_name }}</p>
+                        <p class="text-sm opacity-75 mt-2">
+                            <i class="fas fa-hourglass-half mr-1"></i> {{ current_class.start_time }} - {{ current_class.end_time }}
+                        </p>
+                        {% else %}
+                        <p class="text-lg opacity-75">No class is currently running</p>
+                        <p class="text-sm opacity-60">Check back during scheduled class times</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="hidden md:block">
+                    <div class="w-24 h-24 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                        <i class="fas fa-book-open text-4xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Statistics Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Total Students -->
@@ -67,7 +98,7 @@
                         <p class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
                             Today's Attendance
                         </p>
-                        <p class="text-4xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
+                        <p class="text-4xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent" data-today-attendance>
                             {{ today_attendance }}
                         </p>
                     </div>
@@ -268,4 +299,200 @@
         </div>
     </div>
 </div>
+
+<!-- Toast Container for Real-time Notifications -->
+<div id="toastContainer" class="fixed top-20 right-4 z-50 space-y-3 max-w-md"></div>
+
+<script>
+    let lastAttendanceId = {{ recent_attendance[0].id if recent_attendance else 0 }};
+    let currentClassPollInterval;
+    let attendancePollInterval;
+    
+    // Update current running class
+    function updateCurrentClass() {
+        fetch('/api/current-class')
+            .then(response => response.json())
+            .then(data => {
+                const card = document.getElementById('currentClassCard');
+                const content = document.getElementById('currentClassContent');
+                
+                if (data && data.name) {
+                    // Class is running
+                    card.className = 'bg-gradient-to-r from-indigo-500 to-purple-600 shadow-lg rounded-xl overflow-hidden transition-all duration-500';
+                    content.innerHTML = `
+                        <p class="text-xl font-semibold mb-1">${data.name}</p>
+                        <p class="text-sm opacity-90">${data.code} • ${data.teacher_name}</p>
+                        <p class="text-sm opacity-75 mt-2">
+                            <i class="fas fa-hourglass-half mr-1"></i> ${data.start_time} - ${data.end_time}
+                        </p>
+                    `;
+                } else {
+                    // No class running
+                    card.className = 'bg-gray-300 shadow-lg rounded-xl overflow-hidden transition-all duration-500';
+                    content.innerHTML = `
+                        <p class="text-lg opacity-75">No class is currently running</p>
+                        <p class="text-sm opacity-60">Check back during scheduled class times</p>
+                    `;
+                }
+            })
+            .catch(error => console.error('Error updating current class:', error));
+    }
+    
+    // Check for new attendance records
+    function checkNewAttendance() {
+        fetch(`/api/recent-attendance?last_id=${lastAttendanceId}`)
+            .then(response => response.json())
+            .then(records => {
+                if (records.length > 0) {
+                    // Update last_id to the newest record
+                    lastAttendanceId = Math.max(...records.map(r => r.id));
+                    
+                    // Show toast for each new record (newest first)
+                    records.forEach((record, index) => {
+                        setTimeout(() => {
+                            showAttendanceToast(record);
+                        }, index * 300); // Stagger toasts by 300ms
+                    });
+                    
+                    // Update the recent attendance section if it exists
+                    updateRecentAttendanceList();
+                }
+            })
+            .catch(error => console.error('Error checking attendance:', error));
+    }
+    
+    // Show toast notification for new attendance
+    function showAttendanceToast(record) {
+        const toastContainer = document.getElementById('toastContainer');
+        
+        // Determine action type (entry or exit)
+        const isEntry = record.action === 'entry';
+        const isExit = record.action === 'exit';
+        
+        // Determine status color and icon
+        let statusColor = 'green';
+        let statusIcon = 'sign-in-alt';
+        let actionText = 'Entered';
+        
+        if (isExit) {
+            statusColor = 'blue';
+            statusIcon = 'sign-out-alt';
+            actionText = 'Exited';
+        } else if (record.status === 'late') {
+            statusColor = 'yellow';
+            statusIcon = 'exclamation-circle';
+            actionText = 'Late Entry';
+        }
+        
+        // Build duration text for exits
+        let durationText = '';
+        if (isExit && record.duration_minutes) {
+            const hours = Math.floor(record.duration_minutes / 60);
+            const mins = record.duration_minutes % 60;
+            if (hours > 0) {
+                durationText = `<span class="ml-2 text-xs text-gray-500"><i class="fas fa-hourglass-half mr-1"></i>${hours}h ${mins}m</span>`;
+            } else {
+                durationText = `<span class="ml-2 text-xs text-gray-500"><i class="fas fa-hourglass-half mr-1"></i>${mins} min</span>`;
+            }
+        }
+        
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `bg-white shadow-2xl rounded-xl border-l-4 border-${statusColor}-500 p-4 transform transition-all duration-500 opacity-0 translate-x-full`;
+        toast.innerHTML = `
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-${statusColor}-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-${statusIcon} text-${statusColor}-600"></i>
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-gray-900">${record.student_name}</p>
+                    <p class="text-xs text-gray-600">${record.student_id} • ${record.class_name}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-clock mr-1"></i>${record.timestamp}
+                        <span class="ml-2 px-2 py-0.5 bg-${statusColor}-100 text-${statusColor}-800 rounded-full uppercase font-semibold text-[10px]">${actionText}</span>
+                        ${durationText}
+                    </p>
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Trigger animation
+        setTimeout(() => {
+            toast.classList.remove('opacity-0', 'translate-x-full');
+        }, 10);
+        
+        // Auto-remove after 6 seconds (longer for exit messages with duration)
+        const displayTime = isExit ? 7000 : 5000;
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-x-full');
+            setTimeout(() => toast.remove(), 500);
+        }, displayTime);
+        
+        // Play notification sound
+        playNotificationSound(isExit);
+    }
+    
+    // Play a subtle notification sound (different tones for entry/exit)
+    function playNotificationSound(isExit = false) {
+        // Create a simple beep using Web Audio API
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Higher pitch for entry, lower for exit
+            oscillator.frequency.value = isExit ? 600 : 900;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (e) {
+            // Silently fail if audio not supported
+        }
+    }
+    
+    // Update recent attendance list in the dashboard
+    function updateRecentAttendanceList() {
+        // Reload the page section or update dynamically
+        // For now, just increment the today's attendance count
+        const todayCount = document.querySelector('[data-today-attendance]');
+        if (todayCount) {
+            const current = parseInt(todayCount.textContent);
+            todayCount.textContent = current + 1;
+        }
+    }
+    
+    // Initialize polling
+    function startPolling() {
+        // Update current class every 30 seconds
+        updateCurrentClass();
+        currentClassPollInterval = setInterval(updateCurrentClass, 30000);
+        
+        // Check for new attendance every 2 seconds
+        checkNewAttendance();
+        attendancePollInterval = setInterval(checkNewAttendance, 2000);
+    }
+    
+    // Start polling when page loads
+    document.addEventListener('DOMContentLoaded', startPolling);
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+        clearInterval(currentClassPollInterval);
+        clearInterval(attendancePollInterval);
+    });
+</script>
 {% endblock %}
