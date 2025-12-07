@@ -2,59 +2,81 @@
 
 {% block title %}Devices - Fingerprint Attendance{% endblock %}
 
+{% block page_header %}
+    <i class="fas fa-microchip mr-2"></i> Devices
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
-    <!-- Page Header -->
-    <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">
-            <i class="fas fa-microchip text-indigo-600"></i> Devices
-        </h1>
+    <!-- Auto-refresh indicator -->
+    <div class="bg-white shadow-sm rounded-lg px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2">
+                <div id="refresh-indicator" class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span class="text-sm text-gray-600">Auto-refreshing device status</span>
+            </div>
+        </div>
+        <div class="text-xs text-gray-500">
+            Last updated: <span id="last-update-time">Just now</span>
+        </div>
     </div>
     
     <!-- Devices List -->
     {% if devices %}
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div id="devices-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {% for device in devices %}
-                <div class="bg-white shadow rounded-lg">
-                    <div class="px-6 py-4 border-b border-gray-200">
+                <div class="bg-white shadow-lg rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300" data-device-id="{{ device.device_id }}">
+                    <div class="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-gray-900">
-                                <i class="fas fa-microchip text-indigo-600 mr-2"></i>
-                                {{ device.name }}
-                            </h3>
-                            <span class="px-2 py-1 text-xs font-semibold rounded-full
-                                {% if device.mode == 'attendance' %}bg-green-100 text-green-800
-                                {% elif device.mode == 'enrollment' %}bg-blue-100 text-blue-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ device.mode.upper() }}
-                            </span>
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-microchip text-2xl text-white"></i>
+                                <div>
+                                    <h3 class="text-lg font-bold text-white">
+                                        {{ device.name }}
+                                    </h3>
+                                    <p class="text-xs text-indigo-200">{{ device.device_id }}</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end space-y-2">
+                                <!-- Online/Offline Status -->
+                                <div class="device-status flex items-center space-x-2 bg-white/20 px-3 py-1 rounded-full">
+                                    <div class="status-indicator w-2 h-2 bg-gray-400 rounded-full"></div>
+                                    <span class="status-text text-xs font-semibold text-white">Checking...</span>
+                                </div>
+                                <!-- Mode Badge -->
+                                <span class="device-mode px-3 py-1 text-xs font-semibold rounded-full bg-white/20 text-white">
+                                    {{ device.mode.upper() }}
+                                </span>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="p-6 space-y-3">
+                    <div class="p-6 space-y-4">
                         <!-- Device Info -->
-                        <div class="text-sm">
-                            <span class="text-gray-500">Device ID:</span>
-                            <span class="font-medium text-gray-900 ml-2">{{ device.device_id }}</span>
-                        </div>
-                        
-                        <div class="text-sm">
-                            <span class="text-gray-500">Location:</span>
-                            <span class="font-medium text-gray-900 ml-2">{{ device.location or 'Not set' }}</span>
-                        </div>
-                        
-                        {% if device.current_class %}
-                            <div class="text-sm">
-                                <span class="text-gray-500">Current Class:</span>
-                                <span class="font-medium text-gray-900 ml-2">{{ device.current_class.name }}</span>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Location</p>
+                                <p class="text-sm font-semibold text-gray-900 device-location">{{ device.location or 'Not set' }}</p>
                             </div>
-                        {% endif %}
+                            
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Current Class</p>
+                                <p class="text-sm font-semibold text-gray-900 device-class">
+                                    {% if device.current_class %}{{ device.current_class.name }}{% else %}None{% endif %}
+                                </p>
+                            </div>
+                        </div>
                         
-                        <div class="text-sm">
-                            <span class="text-gray-500">Last Seen:</span>
-                            <span class="font-medium text-gray-900 ml-2">
-                                {{ device.last_seen.strftime('%b %d, %I:%M %p') if device.last_seen else 'Never' }}
-                            </span>
+                        <div class="bg-indigo-50 rounded-lg p-3 border-l-4 border-indigo-500">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-clock text-indigo-600"></i>
+                                    <span class="text-xs text-gray-600">Last Seen:</span>
+                                </div>
+                                <span class="device-last-seen text-sm font-semibold text-gray-900">
+                                    {{ device.last_seen.strftime('%b %d, %I:%M %p') if device.last_seen else 'Never' }}
+                                </span>
+                            </div>
                         </div>
                         
                         <!-- Mode Control Form -->
@@ -124,4 +146,104 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let updateInterval;
+
+function updateDeviceStatus() {
+    fetch('/api/device/status')
+        .then(response => response.json())
+        .then(data => {
+            const devices = data.devices;
+            
+            devices.forEach(device => {
+                const deviceCard = document.querySelector(`[data-device-id="${device.device_id}"]`);
+                if (!deviceCard) return;
+                
+                // Update online/offline status
+                const statusIndicator = deviceCard.querySelector('.status-indicator');
+                const statusText = deviceCard.querySelector('.status-text');
+                
+                if (device.is_online) {
+                    statusIndicator.className = 'status-indicator w-2 h-2 bg-green-400 rounded-full animate-pulse';
+                    statusText.textContent = 'Online';
+                    statusText.className = 'status-text text-xs font-semibold text-white';
+                } else {
+                    statusIndicator.className = 'status-indicator w-2 h-2 bg-red-400 rounded-full';
+                    statusText.textContent = 'Offline';
+                    statusText.className = 'status-text text-xs font-semibold text-white';
+                }
+                
+                // Update mode
+                const modeElement = deviceCard.querySelector('.device-mode');
+                if (modeElement) {
+                    modeElement.textContent = device.mode.toUpperCase();
+                }
+                
+                // Update class name
+                const classElement = deviceCard.querySelector('.device-class');
+                if (classElement && device.current_class_name) {
+                    classElement.textContent = device.current_class_name;
+                } else if (classElement) {
+                    classElement.textContent = 'None';
+                }
+                
+                // Update last seen
+                const lastSeenElement = deviceCard.querySelector('.device-last-seen');
+                if (lastSeenElement && device.last_seen) {
+                    const lastSeen = new Date(device.last_seen);
+                    const now = new Date();
+                    const diffSeconds = Math.floor((now - lastSeen) / 1000);
+                    
+                    let timeText;
+                    if (diffSeconds < 5) {
+                        timeText = 'Just now';
+                    } else if (diffSeconds < 60) {
+                        timeText = `${diffSeconds}s ago`;
+                    } else if (diffSeconds < 3600) {
+                        const minutes = Math.floor(diffSeconds / 60);
+                        timeText = `${minutes}m ago`;
+                    } else if (diffSeconds < 86400) {
+                        const hours = Math.floor(diffSeconds / 3600);
+                        timeText = `${hours}h ago`;
+                    } else {
+                        timeText = lastSeen.toLocaleDateString() + ' ' + lastSeen.toLocaleTimeString();
+                    }
+                    
+                    lastSeenElement.textContent = timeText;
+                }
+            });
+            
+            // Update last refresh time
+            const lastUpdateElement = document.getElementById('last-update-time');
+            if (lastUpdateElement) {
+                const now = new Date();
+                lastUpdateElement.textContent = now.toLocaleTimeString();
+            }
+        })
+        .catch(error => {
+            console.error('Error updating device status:', error);
+            // Show error indicator
+            const indicator = document.getElementById('refresh-indicator');
+            if (indicator) {
+                indicator.className = 'w-2 h-2 bg-red-500 rounded-full';
+            }
+        });
+}
+
+// Update immediately on page load
+updateDeviceStatus();
+
+// Update every 3 seconds for real-time monitoring
+updateInterval = setInterval(updateDeviceStatus, 3000);
+
+// Clean up interval when page is unloaded
+window.addEventListener('beforeunload', () => {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+});
+</script>
 {% endblock %}

@@ -36,6 +36,25 @@ def create_app(config_name='default'):
     def inject_datetime():
         return {'datetime': datetime}
     
+    # Add sidebar stats to all templates
+    @app.context_processor
+    def inject_sidebar_stats():
+        from app.models import Student, Class, Device, Attendance
+        from app.utils.timezone import get_today_start
+        
+        total_students = Student.query.count()
+        total_classes = Class.query.filter_by(is_active=True).count()
+        total_devices = Device.query.count()
+        today_start = get_today_start()
+        today_attendance = Attendance.query.filter(Attendance.timestamp >= today_start).count()
+        
+        return {
+            'total_students': total_students,
+            'total_classes': total_classes,
+            'total_devices': total_devices,
+            'today_attendance': today_attendance
+        }
+    
     # Add Dhaka timezone filter for templates
     @app.template_filter('dhaka_time')
     def dhaka_time_filter(dt):

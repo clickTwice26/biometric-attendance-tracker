@@ -1,0 +1,143 @@
+<!-- Overlay for mobile -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 lg:hidden hidden" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-indigo-700 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out shadow-2xl">
+    <div class="flex flex-col h-full">
+        <!-- Logo Section -->
+        <div class="flex items-center justify-between px-6 py-6 border-b border-indigo-600">
+            <a href="{{ url_for('frontend.index') }}" class="flex items-center space-x-3">
+                <div class="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg">
+                    <i class="fas fa-fingerprint text-2xl text-indigo-600"></i>
+                </div>
+                <div class="text-white">
+                    <h1 class="text-lg font-bold leading-tight">Attendance</h1>
+                    <p class="text-xs text-indigo-200">System</p>
+                </div>
+            </a>
+            <button onclick="toggleSidebar()" class="lg:hidden text-white hover:text-indigo-200">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- Navigation Links -->
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            <!-- Dashboard -->
+            <a href="{{ url_for('frontend.index') }}" 
+               class="flex items-center space-x-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all group
+                      {% if request.endpoint == 'frontend.index' %}bg-white/20 shadow-lg{% endif %}">
+                <i class="fas fa-home text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Dashboard</span>
+            </a>
+            
+            <!-- Divider -->
+            <div class="pt-4 pb-2">
+                <p class="px-4 text-xs font-semibold text-indigo-200 uppercase tracking-wider">
+                    Management
+                </p>
+            </div>
+            
+            <!-- Students -->
+            <a href="{{ url_for('frontend.students_list') }}" 
+               class="flex items-center space-x-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all group
+                      {% if 'students' in request.endpoint %}bg-white/20 shadow-lg{% endif %}">
+                <i class="fas fa-users text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Students</span>
+                <span class="ml-auto bg-white/20 text-xs px-2 py-1 rounded-full">{{ total_students|default(0) }}</span>
+            </a>
+            
+            <!-- Classes -->
+            <a href="{{ url_for('frontend.classes_list') }}" 
+               class="flex items-center space-x-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all group
+                      {% if 'class' in request.endpoint %}bg-white/20 shadow-lg{% endif %}">
+                <i class="fas fa-book text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Classes</span>
+                <span class="ml-auto bg-white/20 text-xs px-2 py-1 rounded-full">{{ total_classes|default(0) }}</span>
+            </a>
+            
+            <!-- Divider -->
+            <div class="pt-4 pb-2">
+                <p class="px-4 text-xs font-semibold text-indigo-200 uppercase tracking-wider">
+                    Tracking
+                </p>
+            </div>
+            
+            <!-- Attendance -->
+            <a href="{{ url_for('frontend.attendance_list') }}" 
+               class="flex items-center space-x-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all group
+                      {% if 'attendance' in request.endpoint %}bg-white/20 shadow-lg{% endif %}">
+                <i class="fas fa-clipboard-check text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Attendance</span>
+                {% if today_attendance %}
+                    <span class="ml-auto bg-green-500 text-xs px-2 py-1 rounded-full">{{ today_attendance }}</span>
+                {% endif %}
+            </a>
+            
+            <!-- Reports -->
+            <a href="{{ url_for('frontend.reports') }}" 
+               class="flex items-center space-x-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all group
+                      {% if 'reports' in request.endpoint %}bg-white/20 shadow-lg{% endif %}">
+                <i class="fas fa-chart-bar text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Reports</span>
+            </a>
+            
+            <!-- Divider -->
+            <div class="pt-4 pb-2">
+                <p class="px-4 text-xs font-semibold text-indigo-200 uppercase tracking-wider">
+                    System
+                </p>
+            </div>
+            
+            <!-- Devices -->
+            <a href="{{ url_for('frontend.devices_list') }}" 
+               class="flex items-center space-x-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all group
+                      {% if 'devices' in request.endpoint %}bg-white/20 shadow-lg{% endif %}">
+                <i class="fas fa-microchip text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Devices</span>
+                <span class="ml-auto">
+                    <i class="fas fa-circle text-xs {% if total_devices %}text-green-400{% else %}text-gray-400{% endif %}"></i>
+                </span>
+            </a>
+        </nav>
+        
+        <!-- Bottom Section -->
+        <div class="px-4 py-4 border-t border-indigo-600">
+            <!-- Quick Stats Card -->
+            <div class="bg-white/10 rounded-lg p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-indigo-200 text-xs font-medium">System Status</span>
+                    <span class="flex items-center text-green-400 text-xs">
+                        <i class="fas fa-circle text-xs mr-1 animate-pulse"></i> Active
+                    </span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-white">
+                    <div class="text-center">
+                        <p class="text-xl font-bold">{{ total_students|default(0) }}</p>
+                        <p class="text-xs text-indigo-200">Students</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-xl font-bold">{{ total_devices|default(0) }}</p>
+                        <p class="text-xs text-indigo-200">Devices</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Help Link -->
+            <a href="#" class="flex items-center space-x-2 px-4 py-2 text-sm text-indigo-200 hover:text-white transition">
+                <i class="fas fa-question-circle"></i>
+                <span>Help & Support</span>
+            </a>
+        </div>
+    </div>
+</aside>
+
+<script>
+    // Toggle sidebar function
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        
+        sidebar.classList.toggle('-translate-x-full');
+        overlay.classList.toggle('hidden');
+    }
+</script>

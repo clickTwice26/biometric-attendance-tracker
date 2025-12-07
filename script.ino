@@ -5,11 +5,12 @@
 #include <EEPROM.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <esp_wifi.h>  // Required for esp_wifi_set_mac()
 
 // ================== WIFI & SERVER CREDENTIALS ==================
-const char* ssid = "Saif12";
-const char* password = "00000000";
-const char* serverURL = "http://156.67.110.215:8888"; // Your Flask server IP:port
+const char* ssid = "5hagato";
+const char* password = "1292?5hagat0";
+const char* serverURL = "http://192.168.0.113:8888"; // Your Flask server IP:port
 // Note: If running locally, use your computer's local IP (not 127.0.0.1)
 // Find IP with: hostname -I (Linux/Mac) or ipconfig (Windows)
 
@@ -128,6 +129,33 @@ const char* wlStatusToString(wl_status_t status) {
   }
 }
 
+void setRandomMacAddress() {
+  // Generate random MAC address
+  // First byte: Set bit 1 (locally administered) and clear bit 0 (unicast)
+  // Format: 0xXE where X is random (locally administered MAC)
+  uint8_t newMac[6];
+  
+  // First octet: Locally administered, unicast (02, 06, 0A, 0E)
+  newMac[0] = 0x02; // Locally administered, unicast
+  
+  // Generate random bytes for remaining octets
+  for (int i = 1; i < 6; i++) {
+    newMac[i] = random(0, 256);
+  }
+  
+  // Set the new MAC address for station mode
+  esp_wifi_set_mac(WIFI_IF_STA, newMac);
+  
+  // Log the new MAC address
+  DEBUG_PRINT("New MAC Address: ");
+  for (int i = 0; i < 6; i++) {
+    if (newMac[i] < 16) DEBUG_PRINT("0");
+    DEBUG_PRINT(String(newMac[i], HEX));
+    if (i < 5) DEBUG_PRINT(":");
+  }
+  DEBUG_PRINTLN();
+}
+
 void setupWiFi() {
   DEBUG_PRINTLN("\nConnecting to WiFi...");
   showLCD("Connecting to", ssid);
@@ -135,6 +163,12 @@ void setupWiFi() {
   WiFi.disconnect(true);
   delay(100);
   WiFi.mode(WIFI_STA);
+  
+  // Change MAC address before connecting
+  DEBUG_PRINTLN("Setting random MAC address...");
+  setRandomMacAddress();
+  delay(100);
+  
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
   
@@ -552,10 +586,14 @@ void deleteUser() {
 void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
+  
+  // Initialize random seed for MAC address generation
+  randomSeed(analogRead(0));
+  
   DEBUG_PRINTLN("\n\n=== FINGERPRINT ATTENDANCE SYSTEM ===");
   DEBUG_PRINTLN("Device ID: " + String(DEVICE_ID));
   DEBUG_PRINTLN("Server: " + String(serverURL));
-  DEBUG_PRINTLN("Version: 3.0 - Polling-Based Listening Device");
+  DEBUG_PRINTLN("Version: 3.1 - MAC Randomization Enabled");
   DEBUG_PRINTLN("Mode: Automatic - No manual commands required");
 
   mySerial.begin(57600, SERIAL_8N1, RXD2, TXD2);

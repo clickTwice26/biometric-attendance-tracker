@@ -9,6 +9,38 @@ from app.utils.timezone import get_naive_now
 
 bp = Blueprint('device', __name__, url_prefix='/api/device')
 
+@bp.route('/status', methods=['GET'])
+def get_all_devices_status():
+    """Get online/offline status of all devices"""
+    devices = Device.query.all()
+    now = get_naive_now()
+    
+    device_statuses = []
+    for device in devices:
+        # Device is online if it was seen in the last 30 seconds
+        is_online = False
+        seconds_since_seen = None
+        
+        if device.last_seen:
+            time_diff = now - device.last_seen
+            seconds_since_seen = int(time_diff.total_seconds())
+            is_online = seconds_since_seen < 30
+        
+        device_statuses.append({
+            'id': device.id,
+            'device_id': device.device_id,
+            'name': device.name,
+            'location': device.location,
+            'mode': device.mode,
+            'is_online': is_online,
+            'seconds_since_seen': seconds_since_seen,
+            'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+            'current_class_id': device.current_class_id,
+            'current_class_name': device.current_class.name if device.current_class else None
+        })
+    
+    return jsonify({'devices': device_statuses}), 200
+
 @bp.route('/mode', methods=['POST'])
 def get_device_mode():
     """Get current device mode and class info"""
