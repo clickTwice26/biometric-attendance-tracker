@@ -2,97 +2,197 @@
 
 {% block title %}Add Class - Fingerprint Attendance{% endblock %}
 
+{% block page_header %}
+    <i class="fas fa-book-medical mr-2"></i> Add New Class
+{% endblock %}
+
 {% block content %}
-<div class="max-w-2xl mx-auto space-y-6">
-    <!-- Page Header -->
-    <div class="flex items-center space-x-4">
-        <a href="{{ url_for('frontend.classes_list') }}" 
-           class="text-gray-600 hover:text-gray-900">
-            <i class="fas fa-arrow-left text-xl"></i>
-        </a>
-        <h1 class="text-3xl font-bold text-gray-900">
-            <i class="fas fa-book-medical text-indigo-600"></i> Add New Class
-        </h1>
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Page Header with Gradient -->
+    <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-xl p-8 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="flex items-center space-x-3 mb-2">
+                    <a href="{{ url_for('frontend.classes_list') }}" 
+                       class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-2 transition">
+                        <i class="fas fa-arrow-left text-xl"></i>
+                    </a>
+                    <h1 class="text-3xl font-bold">Create New Class</h1>
+                </div>
+                <p class="text-indigo-100 ml-14">Set up a new class with schedule and details</p>
+            </div>
+            <div class="bg-white bg-opacity-20 rounded-full p-6 hidden md:block">
+                <i class="fas fa-book-medical text-5xl"></i>
+            </div>
+        </div>
     </div>
     
     <!-- Form -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <form method="POST" class="space-y-6">
-            <!-- Name -->
-            <div>
-                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
-                    Class Name <span class="text-red-500">*</span>
-                </label>
-                <input type="text" id="name" name="name" required 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                       placeholder="e.g., Computer Science 101">
+    <div class="bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-100">
+        <form method="POST" class="space-y-0">
+            <!-- Basic Information Section -->
+            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 px-8 py-4 border-b border-indigo-100">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-info-circle text-indigo-600 mr-3"></i>
+                    Basic Information
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">Enter the class name, code, and instructor details</p>
             </div>
             
-            <!-- Code -->
-            <div>
-                <label for="code" class="block text-sm font-medium text-gray-700 mb-1">
-                    Class Code
-                </label>
-                <input type="text" id="code" name="code" 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                       placeholder="e.g., CS101">
-                <p class="mt-1 text-sm text-gray-500">
-                    Unique identifier for the class
-                </p>
+            <div class="px-8 py-6 space-y-6">
+                <!-- Name -->
+                <div>
+                    <label for="name" class="block text-sm font-bold text-gray-700 mb-2">
+                        Class Name <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-book text-gray-400"></i>
+                        </div>
+                        <input type="text" id="name" name="name" required 
+                               class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                               placeholder="e.g., Computer Science 101">
+                    </div>
+                </div>
+                
+                <!-- Code & Teacher in Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Code -->
+                    <div>
+                        <label for="code" class="block text-sm font-bold text-gray-700 mb-2">
+                            Class Code
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-hashtag text-gray-400"></i>
+                            </div>
+                            <input type="text" id="code" name="code" 
+                                   class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                   placeholder="e.g., CS101">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>Unique identifier
+                        </p>
+                    </div>
+                    
+                    <!-- Teacher Name -->
+                    <div>
+                        <label for="teacher_name" class="block text-sm font-bold text-gray-700 mb-2">
+                            Teacher Name
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-user-tie text-gray-400"></i>
+                            </div>
+                            <input type="text" id="teacher_name" name="teacher_name" 
+                                   class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                   placeholder="e.g., Dr. John Smith">
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <!-- Teacher Name -->
-            <div>
-                <label for="teacher_name" class="block text-sm font-medium text-gray-700 mb-1">
-                    Teacher Name
-                </label>
-                <input type="text" id="teacher_name" name="teacher_name" 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                       placeholder="e.g., Dr. John Smith">
-            </div>
-            
-            <!-- Schedule -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-3">
+            <!-- Schedule Section -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-8 py-4 border-y border-blue-100">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="far fa-clock text-blue-600 mr-3"></i>
                     Class Schedule
-                </label>
-                <div class="space-y-3 bg-gray-50 p-4 rounded-md">
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">Select days and set time ranges for each class session</p>
+            </div>
+            
+            <div class="px-8 py-6">
+                <div class="space-y-3">
                     {% set days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
                     {% set day_labels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
                     
                     {% for i in range(days|length) %}
                     {% set day = days[i] %}
                     {% set label = day_labels[i] %}
-                    <div class="flex items-center space-x-4 bg-white p-3 rounded border border-gray-200">
-                        <div class="flex items-center w-32">
+                    <div class="flex items-center space-x-4 bg-white p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-300 transition shadow-sm">
+                        <div class="flex items-center w-36">
                             <input type="checkbox" 
                                    id="schedule_{{ day }}_enabled" 
                                    name="schedule_{{ day }}_enabled"
                                    onchange="toggleScheduleDay('{{ day }}')"
-                                   class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                            <label for="schedule_{{ day }}_enabled" class="ml-2 text-sm font-medium text-gray-700">
-                                {{ label }}
+                                   class="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
+                            <label for="schedule_{{ day }}_enabled" class="ml-3 text-sm font-bold text-gray-700 cursor-pointer">
+                                <i class="fas fa-calendar-day text-indigo-500 mr-2"></i>{{ label }}
                             </label>
                         </div>
-                        <div class="flex items-center space-x-2 flex-1">
-                            <input type="time" 
-                                   id="schedule_{{ day }}_start" 
-                                   name="schedule_{{ day }}_start"
-                                   disabled
-                                   class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 schedule-time-{{ day }}">
-                            <span class="text-gray-500">to</span>
-                            <input type="time" 
-                                   id="schedule_{{ day }}_end" 
-                                   name="schedule_{{ day }}_end"
-                                   disabled
-                                   class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 schedule-time-{{ day }}">
+                        <div class="flex items-center space-x-3 flex-1">
+                            <div class="flex-1">
+                                <input type="time" 
+                                       id="schedule_{{ day }}_start" 
+                                       name="schedule_{{ day }}_start"
+                                       disabled
+                                       class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent schedule-time-{{ day }} disabled:bg-gray-100 disabled:cursor-not-allowed transition">
+                            </div>
+                            <span class="text-gray-400 font-bold"><i class="fas fa-arrow-right"></i></span>
+                            <div class="flex-1">
+                                <input type="time" 
+                                       id="schedule_{{ day }}_end" 
+                                       name="schedule_{{ day }}_end"
+                                       disabled
+                                       class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent schedule-time-{{ day }} disabled:bg-gray-100 disabled:cursor-not-allowed transition">
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
-                <p class="mt-2 text-xs text-gray-500">
-                    <i class="fas fa-info-circle"></i> Select days and set time ranges for each class session. Only one session per day is allowed.
-                </p>
+                <div class="mt-4 bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
+                    <p class="text-sm text-blue-800 flex items-start">
+                        <i class="fas fa-lightbulb text-blue-600 mt-0.5 mr-2"></i>
+                        <span><strong>Tip:</strong> Select the days when your class meets and set the start and end times. Only one session per day is allowed.</span>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Additional Details Section -->
+            <div class="bg-gradient-to-r from-purple-50 to-pink-50 px-8 py-4 border-y border-purple-100">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-alt text-purple-600 mr-3"></i>
+                    Course Duration & Details
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">Set the date range and add optional description</p>
+            </div>
+            
+            <div class="px-8 py-6 space-y-6">
+                <!-- Date Range -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="start_date" class="block text-sm font-bold text-gray-700 mb-2">
+                            <i class="fas fa-play text-green-500 mr-2"></i>Start Date
+                        </label>
+                        <input type="date" id="start_date" name="start_date"
+                               onchange="calculateTotalClassesAdd()"
+                               class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <p class="mt-1 text-xs text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>When does the course begin?
+                        </p>
+                    </div>
+                    <div>
+                        <label for="end_date" class="block text-sm font-bold text-gray-700 mb-2">
+                            <i class="fas fa-stop text-red-500 mr-2"></i>End Date
+                        </label>
+                        <input type="date" id="end_date" name="end_date"
+                               onchange="calculateTotalClassesAdd()"
+                               class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <p class="mt-1 text-xs text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>When does the course end?
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div>
+                    <label for="description" class="block text-sm font-bold text-gray-700 mb-2">
+                        <i class="fas fa-align-left text-gray-500 mr-2"></i>Description (Optional)
+                    </label>
+                    <textarea id="description" name="description" rows="4"
+                              class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-none"
+                              placeholder="Brief description of the class content, objectives, or notes..."></textarea>
+                </div>
             </div>
             
             <script>
@@ -160,67 +260,39 @@
                 }
             </script>
             
-            <!-- Description -->
-            <div>
-                <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                </label>
-                <textarea id="description" name="description" rows="3"
-                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="Brief description of the class"></textarea>
-            </div>
-            
-            <!-- Date Range -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">
-                        Start Date
-                    </label>
-                    <input type="date" id="start_date" name="start_date"
-                           onchange="calculateTotalClassesAdd()"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <p class="mt-1 text-xs text-gray-500">
-                        Course start date
-                    </p>
-                </div>
-                <div>
-                    <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">
-                        End Date
-                    </label>
-                    <input type="date" id="end_date" name="end_date"
-                           onchange="calculateTotalClassesAdd()"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <p class="mt-1 text-xs text-gray-500">
-                        Course end date
-                    </p>
-                </div>
-            </div>
-            
             <!-- Total Classes Display -->
-            <div id="total-classes-display-add" class="bg-green-50 rounded-lg p-4 border-l-4 border-green-500" style="display: none;">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <i class="fas fa-calculator text-green-600 text-xl mr-3"></i>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900">Total Available Classes</p>
-                            <p class="text-xs text-gray-600">Based on date range and schedule</p>
+            <div class="px-8 pb-6">
+                <div id="total-classes-display-add" class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 border border-green-400 shadow-lg" style="display: none;">
+                    <div class="flex items-center justify-between text-white">
+                        <div class="flex items-center">
+                            <div class="bg-white bg-opacity-20 rounded-full p-4 mr-4">
+                                <i class="fas fa-calculator text-2xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold">Total Available Classes</p>
+                                <p class="text-sm text-green-100">Calculated based on date range and schedule</p>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl px-6 py-4 shadow-lg">
+                            <p class="text-4xl font-bold text-green-600" id="total-classes-count-add">0</p>
                         </div>
                     </div>
-                    <p class="text-2xl font-bold text-green-600" id="total-classes-count-add">0</p>
                 </div>
             </div>
             <input type="hidden" id="total_classes" name="total_classes" value="0">
             
-            <!-- Buttons -->
-            <div class="flex items-center justify-end space-x-4 pt-4">
-                <a href="{{ url_for('frontend.classes_list') }}" 
-                   class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
-                    Cancel
-                </a>
-                <button type="submit" 
-                        class="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-                    <i class="fas fa-save mr-2"></i> Save Class
-                </button>
+            <!-- Action Buttons -->
+            <div class="bg-gray-50 px-8 py-6 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                    <a href="{{ url_for('frontend.classes_list') }}" 
+                       class="inline-flex items-center px-6 py-3 border-2 border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition">
+                        <i class="fas fa-times mr-2"></i> Cancel
+                    </a>
+                    <button type="submit" 
+                            class="inline-flex items-center px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-lg hover:from-indigo-700 hover:to-purple-700 shadow-lg transition transform hover:scale-105">
+                        <i class="fas fa-save mr-2"></i> Create Class
+                    </button>
+                </div>
             </div>
         </form>
     </div>
