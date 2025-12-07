@@ -15,6 +15,9 @@ class Class(db.Model):
     description = db.Column(db.Text, nullable=True)
     teacher_name = db.Column(db.String(100), nullable=True)
     schedule = db.Column(db.String(200), nullable=True)  # e.g., "Mon/Wed 10:00-11:30" (Legacy field)
+    start_date = db.Column(db.Date, nullable=True)  # Course start date
+    end_date = db.Column(db.Date, nullable=True)  # Course end date
+    total_classes = db.Column(db.Integer, nullable=True)  # Calculated total available classes
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=get_naive_now)  # Stored as Asia/Dhaka time (timezone-naive)
     
@@ -32,6 +35,9 @@ class Class(db.Model):
             'teacher_name': self.teacher_name,
             'schedule': self.schedule,  # Legacy field
             'schedules': [s.to_dict() for s in self.schedules] if hasattr(self, 'schedules') else [],
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'total_classes': self.total_classes,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'student_count': len(self.students) if self.students else 0

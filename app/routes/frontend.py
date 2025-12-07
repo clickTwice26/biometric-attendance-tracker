@@ -287,10 +287,15 @@ def class_add():
     from datetime import time
     
     if request.method == 'POST':
+        from datetime import date
+        
         name = request.form.get('name')
         code = request.form.get('code')
         description = request.form.get('description')
         teacher_name = request.form.get('teacher_name')
+        start_date_str = request.form.get('start_date')
+        end_date_str = request.form.get('end_date')
+        total_classes = request.form.get('total_classes', type=int)
         
         if not name:
             flash('Class name is required', 'error')
@@ -302,11 +307,30 @@ def class_add():
                 flash(f'Class code {code} already exists', 'error')
                 return redirect(url_for('frontend.class_add'))
         
+        # Parse dates
+        start_date = None
+        end_date = None
+        
+        if start_date_str:
+            try:
+                start_date = date.fromisoformat(start_date_str)
+            except ValueError:
+                pass
+        
+        if end_date_str:
+            try:
+                end_date = date.fromisoformat(end_date_str)
+            except ValueError:
+                pass
+        
         class_obj = Class(
             name=name,
             code=code if code else None,
             description=description if description else None,
             teacher_name=teacher_name if teacher_name else None,
+            start_date=start_date,
+            end_date=end_date,
+            total_classes=total_classes if total_classes else None,
             is_active=True
         )
         
@@ -361,11 +385,36 @@ def class_edit(class_id):
     class_obj = Class.query.get_or_404(class_id)
     
     if request.method == 'POST':
+        from datetime import date
+        
         class_obj.name = request.form.get('name')
         class_obj.code = request.form.get('code') or None
         class_obj.description = request.form.get('description') or None
         class_obj.teacher_name = request.form.get('teacher_name') or None
         class_obj.is_active = request.form.get('is_active') == 'on'
+        
+        # Handle start and end dates
+        start_date_str = request.form.get('start_date')
+        end_date_str = request.form.get('end_date')
+        total_classes = request.form.get('total_classes', type=int)
+        
+        if start_date_str:
+            try:
+                class_obj.start_date = date.fromisoformat(start_date_str)
+            except ValueError:
+                pass
+        else:
+            class_obj.start_date = None
+            
+        if end_date_str:
+            try:
+                class_obj.end_date = date.fromisoformat(end_date_str)
+            except ValueError:
+                pass
+        else:
+            class_obj.end_date = None
+        
+        class_obj.total_classes = total_classes if total_classes else None
         
         # Delete existing schedules
         ClassSchedule.query.filter_by(class_id=class_obj.id).delete()

@@ -82,6 +82,55 @@
                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-none">{{ class_obj.description or '' }}</textarea>
                 </div>
                 
+                <!-- Date Range -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="start_date" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-calendar-plus text-indigo-600 mr-2"></i>
+                            Start Date
+                        </label>
+                        <input type="date" id="start_date" name="start_date" 
+                               value="{{ class_obj.start_date.isoformat() if class_obj.start_date else '' }}"
+                               onchange="calculateTotalClasses()"
+                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <p class="mt-1 text-xs text-gray-500">
+                            <i class="fas fa-info-circle"></i> Course start date
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label for="end_date" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-calendar-minus text-indigo-600 mr-2"></i>
+                            End Date
+                        </label>
+                        <input type="date" id="end_date" name="end_date" 
+                               value="{{ class_obj.end_date.isoformat() if class_obj.end_date else '' }}"
+                               onchange="calculateTotalClasses()"
+                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <p class="mt-1 text-xs text-gray-500">
+                            <i class="fas fa-info-circle"></i> Course end date
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Total Classes Display -->
+                <div id="total-classes-display" class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border-l-4 border-green-500" style="display: none;">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas fa-calculator text-green-600 text-2xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900">Total Available Classes</p>
+                                <p class="text-xs text-gray-600 mt-1">Based on date range and weekly schedule</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-3xl font-bold text-green-600" id="total-classes-count">0</p>
+                            <p class="text-xs text-gray-500">classes</p>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" id="total_classes" name="total_classes" value="{{ class_obj.total_classes or 0 }}">
+                
                 <!-- Active Status -->
                 <div class="bg-gray-50 rounded-lg p-4 border-l-4 border-indigo-500">
                     <div class="flex items-center">
@@ -127,7 +176,7 @@
                                        id="schedule_{{ day }}_enabled" 
                                        name="schedule_{{ day }}_enabled"
                                        {% if existing %}checked{% endif %}
-                                       onchange="toggleScheduleDay('{{ day }}')"
+                                       onchange="toggleScheduleDay('{{ day }}'); calculateTotalClasses();"
                                        class="h-5 w-5 text-indigo-600 focus:ring-2 focus:ring-indigo-500 border-gray-300 rounded transition">
                                 <label for="schedule_{{ day }}_enabled" class="ml-3 text-sm font-bold text-gray-900 cursor-pointer">
                                     {{ label }}
@@ -222,8 +271,8 @@
                 </div>
                 <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 text-center">
                     <i class="fas fa-calendar-check text-3xl text-green-600 mb-2"></i>
-                    <p class="text-2xl font-bold text-gray-900">{{ class_obj.schedules|length }}</p>
-                    <p class="text-xs text-gray-600 mt-1">Weekly Sessions</p>
+                    <p class="text-2xl font-bold text-gray-900">{{ class_obj.total_classes or 0 }}</p>
+                    <p class="text-xs text-gray-600 mt-1">Total Classes</p>
                 </div>
                 <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 text-center">
                     <i class="fas fa-clipboard-check text-3xl text-purple-600 mb-2"></i>
@@ -260,6 +309,61 @@
             row.classList.remove('ring-2', 'ring-indigo-500', 'bg-gradient-to-r', 'from-indigo-50', 'to-purple-50');
         }
     }
+    
+    function calculateTotalClasses() {
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
+        
+        if (!startDate || !endDate) {
+            document.getElementById('total-classes-display').style.display = 'none';
+            return;
+        }
+        
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (end < start) {
+            document.getElementById('total-classes-display').style.display = 'none';
+            return;
+        }
+        
+        // Get enabled days
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const enabledDays = [];
+        days.forEach((day, index) => {
+            const checkbox = document.getElementById(`schedule_${day}_enabled`);
+            if (checkbox && checkbox.checked) {
+                enabledDays.push(index === 6 ? 0 : index + 1); // Convert to JS day format (0=Sunday)
+            }
+        });
+        
+        if (enabledDays.length === 0) {
+            document.getElementById('total-classes-display').style.display = 'none';
+            return;
+        }
+        
+        // Count classes between start and end date
+        let totalClasses = 0;
+        const currentDate = new Date(start);
+        
+        while (currentDate <= end) {
+            const dayOfWeek = currentDate.getDay();
+            if (enabledDays.includes(dayOfWeek)) {
+                totalClasses++;
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        // Update display
+        document.getElementById('total-classes-count').textContent = totalClasses;
+        document.getElementById('total_classes').value = totalClasses;
+        document.getElementById('total-classes-display').style.display = 'block';
+    }
+    
+    // Calculate on page load if dates exist
+    document.addEventListener('DOMContentLoaded', function() {
+        calculateTotalClasses();
+    });
     
     // Form validation
     document.querySelector('form').addEventListener('submit', function(e) {
