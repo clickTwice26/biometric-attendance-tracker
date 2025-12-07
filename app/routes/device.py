@@ -68,6 +68,13 @@ def get_device_mode():
     if device.mode == 'attendance' and device.current_class:
         response['class_id'] = device.current_class_id
         response['class_name'] = device.current_class.name
+        
+        # Get current running class to include time remaining
+        from app.routes.frontend import get_current_running_class
+        current_class = get_current_running_class()
+        if current_class and current_class['id'] == device.current_class_id:
+            response['time_remaining_minutes'] = current_class['time_remaining_minutes']
+            response['class_end_time'] = current_class['end_time']
     
     return jsonify(response), 200
 

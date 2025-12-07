@@ -45,11 +45,19 @@ bp = Blueprint('attendance', __name__, url_prefix='/api/attendance')
 @bp.route('/verify', methods=['POST'])
 def verify_and_mark_attendance():
     """Verify fingerprint and mark attendance with entry/exit tracking and class validation"""
+    import logging
+    
     data = request.get_json()
     fingerprint_id = data.get('fingerprint_id')  # Legacy: for backward compatibility
     template_hex = data.get('template')  # New: hex-encoded template data
     confidence = data.get('confidence')
     device_id = data.get('device_id', 'ESP32-01')
+    
+    logging.info(f"=== ATTENDANCE VERIFY REQUEST ===")
+    logging.info(f"Device ID: {device_id}")
+    logging.info(f"Fingerprint ID: {fingerprint_id}")
+    logging.info(f"Confidence: {confidence}")
+    logging.info(f"Template provided: {bool(template_hex)}")
     
     student = None
     match_confidence = confidence if confidence else 0
@@ -78,25 +86,42 @@ def verify_and_mark_attendance():
     
     # Method 2: Legacy ID-based lookup (for backward compatibility)
     elif fingerprint_id:
+        logging.info(f"Looking up student by fingerprint_id: {fingerprint_id}")
         student = Student.query.filter_by(fingerprint_id=fingerprint_id).first()
         if not student:
+            logging.warning(f"Student not found for fingerprint_id: {fingerprint_id}")
             return jsonify({
                 'status': 'error',
                 'message': 'Student not found',
                 'fingerprint_id': fingerprint_id
             }), 404
+        logging.info(f"Found student: {student.name} (ID: {student.id})")
     
     else:
+        logging.error("Neither fingerprint_id nor template provided")
         return jsonify({
             'status': 'error',
             'message': 'Either fingerprint_id or template is required'
         }), 400
     
+    # STEP 0: Check if device is in enrollment mode - reject attendance scans during enrollment
+    device = Device.query.filter_by(device_id=device_id).first()
+    logging.info(f"Device lookup: {device_id}, Found: {device is not None}, Mode: {device.mode if device else 'N/A'}")
+    
+    if device and device.mode == 'enrollment':
+        logging.warning(f"Rejecting attendance for {student.name} - Device in enrollment mode")
+        return jsonify({
+            'status': 'error',
+            'message': 'Enrollment mode',
+            'details': 'Device is in enrollment mode. Attendance not recorded.',
+            'student_name': student.name
+        }), 400
+    
     # STEP 1: Check if there is a currently running class
     from app.routes.frontend import get_current_running_class
-    import logging
     
     current_class = get_current_running_class()
+    logging.info(f"Current running class: {current_class}")
     
     if not current_class:
         logging.warning(f"Attendance attempt by {student.name} ({student.student_id}) - No class running")
@@ -109,10 +134,12 @@ def verify_and_mark_attendance():
     
     class_id = current_class['id']
     class_name = current_class['name']
+    logging.info(f"Class ID: {class_id}, Class Name: {class_name}")
     
     # STEP 2: Check for recent attendance (within 3 minutes)
     now = get_naive_now()
     three_minutes_ago = now - timedelta(minutes=3)
+    logging.info(f"Current time: {now}, Checking attendance since: {three_minutes_ago}")
     
     recent_attendance = Attendance.query.filter(
         Attendance.student_id == student.id,
@@ -120,10 +147,13 @@ def verify_and_mark_attendance():
         Attendance.timestamp >= three_minutes_ago
     ).order_by(Attendance.timestamp.desc()).first()
     
+    logging.info(f"Recent attendance found: {recent_attendance is not None}")
+    
     # STEP 3: Handle entry/exit logic
     if recent_attendance:
         # Within 3 minutes - ignore the fingerprint scan
         time_diff = (now - recent_attendance.timestamp).total_seconds() / 60
+        logging.warning(f"Cooldown active for {student.name} - Last scan {time_diff:.1f} minutes ago")
         return jsonify({
             'status': 'cooldown',
             'message': f'Please wait {int(3 - time_diff)} more minute(s)',
@@ -134,6 +164,32 @@ def verify_and_mark_attendance():
     
     # Check if there's an existing attendance record for this class today without exit
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    logging.info(f"Checking for completed attendance since: {today_start}")
+    
+    # First check if student already has BOTH entry and exit for this class today
+    completed_attendance = Attendance.query.filter(
+        Attendance.student_id == student.id,
+        Attendance.class_id == class_id,
+        Attendance.timestamp >= today_start,
+        Attendance.entry_time.isnot(None),
+        Attendance.exit_time.isnot(None)
+    ).first()
+    
+    if completed_attendance:
+        # Student already completed entry and exit for this class
+        logging.warning(f"{student.name} already has completed attendance for {class_name}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Already recorded',
+            'details': f'Entry and exit already marked for {class_name}',
+            'student_name': student.name,
+            'class_name': class_name,
+            'entry_time': completed_attendance.entry_time.strftime('%H:%M:%S'),
+            'exit_time': completed_attendance.exit_time.strftime('%H:%M:%S'),
+            'duration_minutes': completed_attendance.duration_minutes
+        }), 400
+    
+    # Now check for pending entry (no exit yet)
     existing_entry = Attendance.query.filter(
         Attendance.student_id == student.id,
         Attendance.class_id == class_id,
@@ -141,8 +197,11 @@ def verify_and_mark_attendance():
         Attendance.exit_time.is_(None)
     ).first()
     
+    logging.info(f"Existing entry without exit found: {existing_entry is not None}")
+    
     if existing_entry:
         # This is an EXIT scan (after 3 minutes cooldown has passed)
+        logging.info(f"Processing EXIT for {student.name}")
         existing_entry.exit_time = now
         
         # Calculate duration in minutes
@@ -154,6 +213,8 @@ def verify_and_mark_attendance():
         
         db.session.commit()
         
+        logging.info(f"EXIT recorded - Duration: {existing_entry.duration_minutes} minutes")
+        
         return jsonify({
             'status': 'exit',
             'message': f'{student.name} exited from {class_name}',
@@ -162,21 +223,36 @@ def verify_and_mark_attendance():
             'entry_time': existing_entry.entry_time.strftime('%H:%M:%S'),
             'exit_time': now.strftime('%H:%M:%S'),
             'duration_minutes': existing_entry.duration_minutes,
+            'attendance_status': existing_entry.status,
             'attendance_id': existing_entry.id
         }), 200
     
     # This is an ENTRY scan (first scan or new session)
+    logging.info(f"Processing ENTRY for {student.name}")
     # Determine if student is late
     class_start_time = datetime.strptime(current_class['start_time'], '%H:%M').time()
+    class_end_time = datetime.strptime(current_class['end_time'], '%H:%M').time()
     current_time = now.time()
     
+    # Calculate time remaining until class ends
+    class_end_datetime = datetime.combine(datetime.today(), class_end_time)
+    current_datetime = datetime.combine(datetime.today(), current_time)
+    time_remaining_minutes = int((class_end_datetime - current_datetime).total_seconds() / 60)
+    
     status = 'present'
+    late_by_minutes = 0
     if current_time > class_start_time:
         # Late if more than 5 minutes after class start
         time_diff_minutes = (datetime.combine(datetime.today(), current_time) - 
                             datetime.combine(datetime.today(), class_start_time)).total_seconds() / 60
         if time_diff_minutes > 5:
             status = 'late'
+            late_by_minutes = int(time_diff_minutes)
+            logging.info(f"Student is LATE by {late_by_minutes} minutes")
+        else:
+            logging.info(f"Student is ON TIME (within 5 min grace period)")
+    else:
+        logging.info(f"Student is EARLY")
     
     # Create new attendance record for ENTRY
     attendance = Attendance(
@@ -187,11 +263,13 @@ def verify_and_mark_attendance():
         confidence=match_confidence,
         timestamp=now,
         entry_time=now,
-        notes=f"Entered at {now.strftime('%H:%M:%S')}"
+        notes=f"Entered at {now.strftime('%H:%M:%S')}" + (f" (Late by {late_by_minutes} min)" if status == 'late' else "")
     )
     
     db.session.add(attendance)
     db.session.commit()
+    
+    logging.info(f"ENTRY recorded successfully - Attendance ID: {attendance.id}")
     
     return jsonify({
         'status': 'entry',
@@ -200,7 +278,10 @@ def verify_and_mark_attendance():
         'student_id': student.student_id,
         'class_name': class_name,
         'entry_time': now.strftime('%H:%M:%S'),
+        'class_end_time': current_class['end_time'],
+        'time_remaining_minutes': time_remaining_minutes,
         'attendance_status': status,
+        'late_by_minutes': late_by_minutes if status == 'late' else 0,
         'confidence': match_confidence,
         'attendance_id': attendance.id
     }), 200

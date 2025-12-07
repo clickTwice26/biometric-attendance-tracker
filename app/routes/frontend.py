@@ -52,13 +52,20 @@ def get_current_running_class():
         if schedule.start_time <= current_time <= schedule.end_time:
             class_obj = Class.query.get(schedule.class_id)
             if class_obj and class_obj.is_active:
+                # Calculate time remaining
+                from datetime import datetime
+                end_datetime = datetime.combine(datetime.today(), schedule.end_time)
+                current_datetime = datetime.combine(datetime.today(), current_time)
+                time_remaining_minutes = int((end_datetime - current_datetime).total_seconds() / 60)
+                
                 return {
                     'id': class_obj.id,
                     'name': class_obj.name,
                     'code': class_obj.code,
                     'teacher_name': class_obj.teacher_name,
                     'start_time': schedule.start_time.strftime('%H:%M'),
-                    'end_time': schedule.end_time.strftime('%H:%M')
+                    'end_time': schedule.end_time.strftime('%H:%M'),
+                    'time_remaining_minutes': time_remaining_minutes
                 }
     
     return None

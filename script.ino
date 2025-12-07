@@ -498,17 +498,103 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
     
     // Handle ENTRY response
     if (status == "entry") {
-      if (studentName.length() > 0) {
-        String displayName = studentName.substring(0, min(16, (int)studentName.length()));
-        showLCD("ENTRY: Welcome!", displayName);
-      } else {
-        showLCD("Entry Marked", "Welcome!");
+      // Parse attendance_status (present or late)
+      int attStatusPos = response.indexOf("\"attendance_status\"");
+      String attendanceStatus = "";
+      if (attStatusPos > -1 && attStatusPos < response.length() - 20) {
+        int colonPos = response.indexOf(":", attStatusPos);
+        if (colonPos > -1 && colonPos < response.length() - 3) {
+          int openQuotePos = response.indexOf("\"", colonPos);
+          if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+            int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+            if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+              attendanceStatus = response.substring(openQuotePos + 1, closeQuotePos);
+            }
+          }
+        }
       }
-      indicateSuccess();
-      beep(50);
-      delay(100);
-      beep(50);
-      delay(2000);
+      
+      // Parse time_remaining_minutes
+      int timeRemainingPos = response.indexOf("\"time_remaining_minutes\"");
+      int timeRemaining = 0;
+      if (timeRemainingPos > -1 && timeRemainingPos < response.length() - 30) {
+        int colonPos = response.indexOf(":", timeRemainingPos);
+        if (colonPos > -1 && colonPos < response.length() - 2) {
+          int numStart = colonPos + 1;
+          while (numStart < response.length() && (response.charAt(numStart) == ' ' || response.charAt(numStart) == '\n')) {
+            numStart++;
+          }
+          int numEnd = numStart;
+          while (numEnd < response.length() && response.charAt(numEnd) >= '0' && response.charAt(numEnd) <= '9') {
+            numEnd++;
+          }
+          if (numEnd > numStart) {
+            timeRemaining = response.substring(numStart, numEnd).toInt();
+          }
+        }
+      }
+      
+      // Parse late_by_minutes
+      int lateByPos = response.indexOf("\"late_by_minutes\"");
+      int lateByMinutes = 0;
+      if (lateByPos > -1 && lateByPos < response.length() - 20) {
+        int colonPos = response.indexOf(":", lateByPos);
+        if (colonPos > -1 && colonPos < response.length() - 2) {
+          int numStart = colonPos + 1;
+          while (numStart < response.length() && (response.charAt(numStart) == ' ' || response.charAt(numStart) == '\n')) {
+            numStart++;
+          }
+          int numEnd = numStart;
+          while (numEnd < response.length() && response.charAt(numEnd) >= '0' && response.charAt(numEnd) <= '9') {
+            numEnd++;
+          }
+          if (numEnd > numStart) {
+            lateByMinutes = response.substring(numStart, numEnd).toInt();
+          }
+        }
+      }
+      
+      // Display based on attendance status
+      if (attendanceStatus == "late") {
+        if (studentName.length() > 0) {
+          String displayName = studentName.substring(0, min(16, (int)studentName.length()));
+          showLCD("LATE: " + displayName, "Late by " + String(lateByMinutes) + " min");
+        } else {
+          showLCD("Late Entry", "Late by " + String(lateByMinutes) + " min");
+        }
+        indicateFailure();
+        beep(200);
+        delay(100);
+        beep(200);
+        delay(2000);
+      } else {
+        if (studentName.length() > 0) {
+          String displayName = studentName.substring(0, min(16, (int)studentName.length()));
+          showLCD("Welcome!", displayName);
+        } else {
+          showLCD("Entry Marked", "Welcome!");
+        }
+        indicateSuccess();
+        beep(50);
+        delay(100);
+        beep(50);
+        delay(2000);
+      }
+      
+      // Show time remaining
+      if (timeRemaining > 0) {
+        int hours = timeRemaining / 60;
+        int mins = timeRemaining % 60;
+        String timeStr = "";
+        if (hours > 0) {
+          timeStr = String(hours) + "h " + String(mins) + "m left";
+        } else {
+          timeStr = String(mins) + " min left";
+        }
+        showLCD("Class ends in:", timeStr);
+        delay(2000);
+      }
+      
       return true;
     }
     // Handle EXIT response
@@ -570,18 +656,33 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
       delay(2000);
       return true;
     }
-    // Handle error response (including "No class running")
+    // Handle error response (including "No class running" and "Already recorded")
     else if (status == "error") {
-      if (message.length() > 0) {
-        String line1 = message.substring(0, min(16, (int)message.length()));
-        String line2 = "";
-        if (message.length() > 16) {
-          line2 = message.substring(16, min(32, (int)message.length()));
+      // Parse details field for more info
+      int detailsPos = response.indexOf("\"details\"");
+      String details = "";
+      if (detailsPos > -1 && detailsPos < response.length() - 12) {
+        int colonPos = response.indexOf(":", detailsPos);
+        if (colonPos > -1 && colonPos < response.length() - 3) {
+          int openQuotePos = response.indexOf("\"", colonPos);
+          if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+            int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+            if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+              details = response.substring(openQuotePos + 1, closeQuotePos);
+            }
+          }
         }
-        showLCD(line1, line2);
-      } else {
-        showLCD("Error", "Contact teacher");
       }
+      
+      // Display message or details
+      String displayMsg = message.length() > 0 ? message : (details.length() > 0 ? details : "Error occurred");
+      String line1 = displayMsg.substring(0, min(16, (int)displayMsg.length()));
+      String line2 = "";
+      if (displayMsg.length() > 16) {
+        line2 = displayMsg.substring(16, min(32, (int)displayMsg.length()));
+      }
+      showLCD(line1, line2);
+      
       indicateFailure();
       delay(3000); // Show error longer
       return false;
@@ -604,13 +705,29 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
     delay(2000);
     return false;
   }
-  // Handle 400 errors (like no class running, cooldown, etc.)
+  // Handle 400 - Bad Request (might contain useful error message)
   else if (httpCode == 400) {
     String response = http.getString();
     http.end();
-    DEBUG_PRINTLN("Client error (400): " + response);
+    DEBUG_PRINTLN("Bad Request (400): " + response);
     
-    // Try to parse the message from error response
+    // Try to parse the status field first
+    int statusPos = response.indexOf("\"status\"");
+    String status = "";
+    if (statusPos > -1 && statusPos < response.length() - 10) {
+      int colonPos = response.indexOf(":", statusPos);
+      if (colonPos > -1 && colonPos < response.length() - 3) {
+        int openQuotePos = response.indexOf("\"", colonPos);
+        if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+          int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+          if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+            status = response.substring(openQuotePos + 1, closeQuotePos);
+          }
+        }
+      }
+    }
+    
+    // Try to parse the message field
     int msgPos = response.indexOf("\"message\"");
     String message = "";
     if (msgPos > -1 && msgPos < response.length() - 12) {
@@ -626,17 +743,43 @@ bool sendFingerprintToServer(uint8_t fingerprintId, uint16_t confidence) {
       }
     }
     
-    // Display the message or default error
-    if (message.length() > 0) {
-      String line1 = message.substring(0, min(16, (int)message.length()));
-      String line2 = "";
-      if (message.length() > 16) {
-        line2 = message.substring(16, min(32, (int)message.length()));
+    // Try to parse the details field for more specific info
+    int detailsPos = response.indexOf("\"details\"");
+    String details = "";
+    if (detailsPos > -1 && detailsPos < response.length() - 12) {
+      int colonPos = response.indexOf(":", detailsPos);
+      if (colonPos > -1 && colonPos < response.length() - 3) {
+        int openQuotePos = response.indexOf("\"", colonPos);
+        if (openQuotePos > -1 && openQuotePos < response.length() - 1) {
+          int closeQuotePos = response.indexOf("\"", openQuotePos + 1);
+          if (closeQuotePos > openQuotePos && closeQuotePos <= response.length()) {
+            details = response.substring(openQuotePos + 1, closeQuotePos);
+          }
+        }
       }
-      showLCD(line1, line2);
-    } else {
-      showLCD("Error 400", "Try again");
     }
+    
+    DEBUG_PRINTLN("Parsed status: " + status);
+    DEBUG_PRINTLN("Parsed message: " + message);
+    DEBUG_PRINTLN("Parsed details: " + details);
+    
+    // Display the most descriptive message available
+    String displayMsg = "";
+    if (details.length() > 0) {
+      displayMsg = details;
+    } else if (message.length() > 0) {
+      displayMsg = message;
+    } else {
+      displayMsg = "Request Error";
+    }
+    
+    String line1 = displayMsg.substring(0, min(16, (int)displayMsg.length()));
+    String line2 = "";
+    if (displayMsg.length() > 16) {
+      line2 = displayMsg.substring(16, min(32, (int)displayMsg.length()));
+    }
+    showLCD(line1, line2);
+    
     indicateFailure();
     delay(3000);
     return false;
@@ -729,6 +872,7 @@ void setup() {
 // ================== DEVICE MODE CHECKING ==================
 String currentMode = "idle";  // 'idle', 'enrollment', 'attendance'
 String currentClassName = "";  // Current class name
+int currentClassTimeRemaining = 0;  // Minutes remaining in current class
 unsigned long lastModeCheck = 0;
 const unsigned long MODE_CHECK_INTERVAL = 5000; // Check mode every 5 seconds
 
@@ -814,6 +958,30 @@ String checkDeviceMode() {
       }
     }
   }
+  
+  // Extract time_remaining_minutes if present
+  int timeRemainingPos = response.indexOf("\"time_remaining_minutes\"");
+  int timeRemainingMinutes = 0;
+  if (timeRemainingPos > -1 && timeRemainingPos < response.length() - 30) {
+    int colonPos = response.indexOf(":", timeRemainingPos);
+    if (colonPos > -1 && colonPos < response.length() - 2) {
+      int numStart = colonPos + 1;
+      while (numStart < response.length() && (response.charAt(numStart) == ' ' || response.charAt(numStart) == '\n')) {
+        numStart++;
+      }
+      int numEnd = numStart;
+      while (numEnd < response.length() && response.charAt(numEnd) >= '0' && response.charAt(numEnd) <= '9') {
+        numEnd++;
+      }
+      if (numEnd > numStart) {
+        timeRemainingMinutes = response.substring(numStart, numEnd).toInt();
+        DEBUG_PRINTLN("Time remaining: " + String(timeRemainingMinutes) + " minutes");
+      }
+    }
+  }
+  
+  // Store time remaining globally for display
+  currentClassTimeRemaining = timeRemainingMinutes;
   
   DEBUG_PRINTLN("=== DEVICE MODE: " + mode + " ===");
   
@@ -1159,7 +1327,19 @@ void loop() {
         // Use currentClassName from mode check
         if (currentClassName.length() > 0) {
           String displayClass = currentClassName.substring(0, min(10, (int)currentClassName.length()));
-          showLCD("Class: " + displayClass, "Touch to scan");
+          String timeStr = "";
+          if (currentClassTimeRemaining > 0) {
+            int hours = currentClassTimeRemaining / 60;
+            int mins = currentClassTimeRemaining % 60;
+            if (hours > 0) {
+              timeStr = String(hours) + "h " + String(mins) + "m left";
+            } else {
+              timeStr = String(mins) + " min left";
+            }
+          } else {
+            timeStr = "Touch to scan";
+          }
+          showLCD("Class: " + displayClass, timeStr);
         } else {
           showLCD("ATTENDANCE MODE", "Touch to scan");
         }
@@ -1195,7 +1375,19 @@ void loop() {
         } else if (currentMode == "attendance") {
           if (currentClassName.length() > 0) {
             String displayClass = currentClassName.substring(0, min(10, (int)currentClassName.length()));
-            showLCD("Class: " + displayClass, "Touch to scan");
+            String timeStr = "";
+            if (currentClassTimeRemaining > 0) {
+              int hours = currentClassTimeRemaining / 60;
+              int mins = currentClassTimeRemaining % 60;
+              if (hours > 0) {
+                timeStr = String(hours) + "h " + String(mins) + "m left";
+              } else {
+                timeStr = String(mins) + " min left";
+              }
+            } else {
+              timeStr = "Touch to scan";
+            }
+            showLCD("Class: " + displayClass, timeStr);
           } else {
             showLCD("ATTENDANCE MODE", "Touch to scan");
           }
@@ -1242,7 +1434,19 @@ void loop() {
     delay(500);
     if (currentMode == "attendance" && currentClassName.length() > 0) {
       String displayClass = currentClassName.substring(0, min(10, (int)currentClassName.length()));
-      showLCD("Class: " + displayClass, "Touch to scan");
+      String timeStr = "";
+      if (currentClassTimeRemaining > 0) {
+        int hours = currentClassTimeRemaining / 60;
+        int mins = currentClassTimeRemaining % 60;
+        if (hours > 0) {
+          timeStr = String(hours) + "h " + String(mins) + "m left";
+        } else {
+          timeStr = String(mins) + " min left";
+        }
+      } else {
+        timeStr = "Touch to scan";
+      }
+      showLCD("Class: " + displayClass, timeStr);
     } else if (currentMode == "attendance") {
       showLCD("ATTENDANCE MODE", "Touch to scan");
     } else if (currentMode == "enrollment") {
