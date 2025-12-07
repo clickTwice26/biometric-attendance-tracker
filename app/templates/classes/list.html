@@ -2,112 +2,212 @@
 
 {% block title %}Classes - Fingerprint Attendance{% endblock %}
 
+{% block page_header %}
+    <i class="fas fa-book mr-2"></i> Classes
+{% endblock %}
+
 {% block content %}
-<div class="space-y-6">
-    <!-- Page Header -->
-    <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">
-            <i class="fas fa-book text-indigo-600"></i> Classes
-        </h1>
-        <a href="{{ url_for('frontend.class_add') }}" 
-           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
-            <i class="fas fa-plus mr-2"></i> Add Class
-        </a>
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Stats Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm opacity-90 mb-1">Total Classes</p>
+                    <p class="text-3xl font-bold">{{ classes|length }}</p>
+                </div>
+                <div class="bg-white bg-opacity-20 rounded-full p-4">
+                    <i class="fas fa-book text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm opacity-90 mb-1">Active Classes</p>
+                    <p class="text-3xl font-bold">{{ classes|selectattr('is_active')|list|length }}</p>
+                </div>
+                <div class="bg-white bg-opacity-20 rounded-full p-4">
+                    <i class="fas fa-check-circle text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm opacity-90 mb-1">Total Students</p>
+                    <p class="text-3xl font-bold">{{ classes|map(attribute='students')|map('length')|sum }}</p>
+                </div>
+                <div class="bg-white bg-opacity-20 rounded-full p-4">
+                    <i class="fas fa-users text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm opacity-90 mb-1">Quick Access</p>
+                    <a href="{{ url_for('frontend.class_add') }}" 
+                       class="inline-flex items-center px-4 py-2 mt-2 bg-white text-orange-600 rounded-lg hover:bg-orange-50 transition font-semibold text-sm">
+                        <i class="fas fa-plus mr-2"></i> Add Class
+                    </a>
+                </div>
+                <div class="bg-white bg-opacity-20 rounded-full p-4">
+                    <i class="fas fa-plus-circle text-2xl"></i>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Classes Grid -->
     {% if classes %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for class_obj in classes %}
-                <div class="bg-white shadow rounded-lg overflow-hidden hover:shadow-lg transition">
-                    <div class="p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900">
-                                {{ class_obj.name }}
-                            </h3>
+                <div class="bg-white overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100">
+                    <!-- Class Header with Gradient -->
+                    <div class="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <h3 class="text-xl font-bold text-white mb-1">{{ class_obj.name }}</h3>
+                                {% if class_obj.code %}
+                                <p class="text-sm text-indigo-100 font-medium">
+                                    <i class="fas fa-hashtag mr-1"></i>{{ class_obj.code }}
+                                </p>
+                                {% endif %}
+                            </div>
                             {% if class_obj.is_active %}
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                    Active
-                                </span>
+                            <span class="px-3 py-1 text-xs font-bold rounded-full bg-green-400 text-green-900 shadow-md">
+                                <i class="fas fa-check-circle mr-1"></i>Active
+                            </span>
                             {% else %}
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                    Inactive
-                                </span>
+                            <span class="px-3 py-1 text-xs font-bold rounded-full bg-gray-300 text-gray-700 shadow-md">
+                                <i class="fas fa-pause-circle mr-1"></i>Inactive
+                            </span>
                             {% endif %}
                         </div>
-                        
-                        {% if class_obj.code %}
-                            <p class="text-sm text-gray-600 mb-2">
-                                <i class="fas fa-hashtag"></i> {{ class_obj.code }}
-                            </p>
-                        {% endif %}
-                        
-                        {% if class_obj.teacher_name %}
-                            <p class="text-sm text-gray-600 mb-2">
-                                <i class="fas fa-chalkboard-teacher"></i> {{ class_obj.teacher_name }}
-                            </p>
-                        {% endif %}
-                        
-                        {% if class_obj.schedules %}
-                            <div class="text-sm text-gray-600 mb-2">
-                                <i class="fas fa-clock"></i> 
-                                <span class="font-medium">Schedule:</span>
-                                <div class="ml-5 mt-1 space-y-1">
-                                    {% for schedule in class_obj.schedules|sort(attribute='day_of_week') %}
-                                    <div class="text-xs">
-                                        <span class="inline-block w-20 font-medium">{{ schedule.day_of_week|capitalize }}:</span>
-                                        {{ schedule.start_time.strftime('%I:%M %p') }} - {{ schedule.end_time.strftime('%I:%M %p') }}
-                                    </div>
-                                    {% endfor %}
-                                </div>
+                    </div>
+
+                    <div class="px-6 py-5">
+                        <!-- Stats Row -->
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <div class="bg-indigo-50 rounded-lg p-3 text-center">
+                                <p class="text-xs text-indigo-600 font-semibold mb-1">Students</p>
+                                <p class="text-xl font-bold text-indigo-700">{{ class_obj.students|length }}</p>
                             </div>
-                        {% else %}
-                            <p class="text-sm text-gray-400 mb-2">
-                                <i class="fas fa-clock"></i> No schedule set
+                            <div class="bg-purple-50 rounded-lg p-3 text-center">
+                                <p class="text-xs text-purple-600 font-semibold mb-1">Schedules</p>
+                                <p class="text-xl font-bold text-purple-700">{{ class_obj.schedules|length }}</p>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-3 text-center">
+                                <p class="text-xs text-blue-600 font-semibold mb-1">Classes</p>
+                                <p class="text-xl font-bold text-blue-700">{{ class_obj.total_classes or 0 }}</p>
+                            </div>
+                        </div>
+
+                        <!-- Teacher Info -->
+                        {% if class_obj.teacher_name %}
+                        <div class="mb-4 bg-gray-50 rounded-lg p-3">
+                            <p class="text-sm text-gray-600 flex items-center">
+                                <i class="fas fa-user-tie text-indigo-500 mr-2 w-5"></i>
+                                <span class="font-semibold text-gray-800">{{ class_obj.teacher_name }}</span>
                             </p>
+                        </div>
                         {% endif %}
-                        
+
+                        <!-- Date Range -->
+                        {% if class_obj.start_date and class_obj.end_date %}
+                        <div class="mb-4 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg p-3">
+                            <p class="text-xs text-orange-700 font-semibold mb-2 flex items-center">
+                                <i class="far fa-calendar-alt mr-2"></i>Class Period
+                            </p>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-700">
+                                    <i class="fas fa-play text-green-500 mr-1"></i>
+                                    {{ class_obj.start_date.strftime('%b %d, %Y') }}
+                                </span>
+                                <i class="fas fa-arrow-right text-gray-400"></i>
+                                <span class="text-gray-700">
+                                    <i class="fas fa-stop text-red-500 mr-1"></i>
+                                    {{ class_obj.end_date.strftime('%b %d, %Y') }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Schedules -->
+                        {% if class_obj.schedules %}
+                        <div class="mb-4">
+                            <p class="text-xs font-bold text-gray-700 uppercase mb-2 flex items-center">
+                                <i class="far fa-clock mr-2 text-indigo-500"></i>Schedule
+                            </p>
+                            <div class="space-y-2">
+                                {% for schedule in class_obj.schedules|sort(attribute='day_of_week') %}
+                                <div class="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg px-3 py-2 border border-blue-100">
+                                    <span class="text-xs font-semibold text-blue-700">
+                                        <i class="fas fa-calendar-day mr-1"></i>{{ schedule.day_of_week|capitalize }}
+                                    </span>
+                                    <span class="text-xs text-gray-700">
+                                        {{ schedule.start_time.strftime('%I:%M %p') }} - {{ schedule.end_time.strftime('%I:%M %p') }}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="mb-4 bg-gray-100 rounded-lg p-3 text-center">
+                            <p class="text-sm text-gray-500">
+                                <i class="fas fa-clock text-gray-400 mr-2"></i>No schedule set
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <!-- Description -->
                         {% if class_obj.description %}
-                            <p class="text-sm text-gray-500 mb-4 line-clamp-2">
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-600 italic line-clamp-2 bg-gray-50 rounded-lg p-3">
+                                <i class="fas fa-quote-left text-gray-400 text-xs mr-1"></i>
                                 {{ class_obj.description }}
                             </p>
+                        </div>
                         {% endif %}
-                        
-                        <div class="flex items-center justify-between pt-4 border-t border-gray-200">
-                            <div class="text-sm text-gray-600">
-                                <i class="fas fa-users"></i> 
-                                {{ class_obj.students|length }} student{{ 's' if class_obj.students|length != 1 else '' }}
-                            </div>
-                            
-                            <div class="flex space-x-2">
-                                <a href="{{ url_for('frontend.class_attendance_report', class_id=class_obj.id) }}" 
-                                   class="text-green-600 hover:text-green-900" title="Attendance Report">
-                                    <i class="fas fa-chart-bar"></i>
-                                </a>
-                                
-                                <a href="{{ url_for('frontend.class_edit', class_id=class_obj.id) }}" 
-                                   class="text-indigo-600 hover:text-indigo-900" title="Edit Class">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                
-                                <form method="POST" action="{{ url_for('frontend.class_delete', class_id=class_obj.id) }}" 
-                                      class="inline" onsubmit="return confirm('Are you sure you want to delete {{ class_obj.name }}?')">
-                                    <button type="submit" class="text-red-600 hover:text-red-900" title="Delete Class">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
+
+                        <!-- Actions -->
+                        <div class="grid grid-cols-3 gap-2 pt-4 border-t border-gray-200">
+                            <a href="{{ url_for('frontend.class_attendance_report', class_id=class_obj.id) }}" 
+                               class="inline-flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-md">
+                                <i class="fas fa-chart-bar text-lg mb-1"></i>
+                                <span class="text-xs font-bold">Report</span>
+                            </a>
+                            <a href="{{ url_for('frontend.class_edit', class_id=class_obj.id) }}" 
+                               class="inline-flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 text-white hover:from-indigo-600 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-md">
+                                <i class="fas fa-edit text-lg mb-1"></i>
+                                <span class="text-xs font-bold">Edit</span>
+                            </a>
+                            <form method="POST" action="{{ url_for('frontend.class_delete', class_id=class_obj.id) }}" 
+                                  class="inline" onsubmit="return confirm('Are you sure you want to delete {{ class_obj.name }}?')">
+                                <button type="submit" 
+                                        class="w-full inline-flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-md">
+                                    <i class="fas fa-trash text-lg mb-1"></i>
+                                    <span class="text-xs font-bold">Delete</span>
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
             {% endfor %}
         </div>
     {% else %}
-        <div class="bg-white shadow rounded-lg p-12 text-center">
-            <i class="fas fa-book text-6xl text-gray-300 mb-4"></i>
-            <p class="text-gray-500 text-lg mb-4">No classes found</p>
+        <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg p-16 text-center border-2 border-dashed border-gray-300">
+            <div class="bg-white rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <i class="fas fa-book text-5xl text-indigo-500"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-700 mb-2">No Classes Yet</h3>
+            <p class="text-gray-500 text-lg mb-6">Get started by adding your first class</p>
             <a href="{{ url_for('frontend.class_add') }}" 
-               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-100 hover:bg-indigo-200">
+               class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-base font-bold rounded-lg hover:from-indigo-600 hover:to-purple-700 shadow-lg transition-all transform hover:scale-105">
                 <i class="fas fa-plus mr-2"></i> Add Your First Class
             </a>
         </div>
