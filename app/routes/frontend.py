@@ -604,3 +604,67 @@ def reports():
                          start_date=start_date_str,
                          end_date=end_date_str,
                          class_filter=class_filter)
+
+@bp.route('/reports/class/<int:class_id>')
+def class_attendance_report(class_id):
+    """Class-based attendance report with percentages and marks"""
+    class_obj = Class.query.get_or_404(class_id)
+    
+    # Get max marks from query parameter (default 10)
+    max_marks = request.args.get('max_marks', default=10, type=float)
+    
+    # Get all students in this class
+    students = Student.query.filter_by(class_id=class_id).order_by(Student.name).all()
+    
+    # Calculate attendance data for each student
+    attendance_data = []
+    total_attendance_sum = 0
+    total_duration_sum = 0
+    total_duration_count = 0
+    
+    for student in students:
+        # Get all attendance records for this student in this class
+        attendance_records = Attendance.query.filter_by(
+            student_id=student.id,
+            class_id=class_id
+        ).all()
+        
+        # Count classes attended (only count records with exit_time as completed)
+        classes_attended = sum(1 for att in attendance_records if att.exit_time)
+        
+        # Calculate average duration (only for completed attendances)
+        durations = [att.duration_minutes for att in attendance_records if att.duration_minutes]
+        avg_duration = sum(durations) / len(durations) if durations else 0
+        
+        if durations:
+            total_duration_sum += sum(durations)
+            total_duration_count += len(durations)
+        
+        # Calculate attendance percentage
+        total_classes = class_obj.total_classes or 1  # Avoid division by zero
+        attendance_percentage = (classes_attended / total_classes) * 100 if total_classes > 0 else 0
+        
+        # Calculate marks based on attendance percentage
+        marks = (attendance_percentage / 100) * max_marks
+        
+        total_attendance_sum += attendance_percentage
+        
+        attendance_data.append({
+            'student': student,
+            'classes_attended': classes_attended,
+            'avg_duration': avg_duration,
+            'attendance_percentage': attendance_percentage,
+            'marks': marks
+        })
+    
+    # Calculate overall statistics
+    class_average = total_attendance_sum / len(students) if students else 0
+    avg_duration = total_duration_sum / total_duration_count if total_duration_count > 0 else 0
+    
+    return render_template('reports/class_attendance.html',
+                         class_obj=class_obj,
+                         students=students,
+                         attendance_data=attendance_data,
+                         max_marks=max_marks,
+                         class_average=class_average,
+                         avg_duration=avg_duration)

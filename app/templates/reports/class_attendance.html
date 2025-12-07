@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Class Attendance Report - {{ class_obj.name }}{% endblock %}
+
+{% block page_header %}
+    <i class="fas fa-chart-bar mr-2"></i> Class Attendance Report
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="flex items-center space-x-2 text-sm text-gray-500">
+        <a href="{{ url_for('frontend.index') }}" class="hover:text-indigo-600 transition">
+            <i class="fas fa-home"></i> Home
+        </a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <a href="{{ url_for('frontend.classes_list') }}" class="hover:text-indigo-600 transition">
+            Classes
+        </a>
+        <i class="fas fa-chevron-right text-xs"></i>
+        <span class="text-gray-900 font-medium">{{ class_obj.name }} - Attendance Report</span>
+    </nav>
+    
+    <!-- Class Info Card -->
+    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold mb-2">{{ class_obj.name }}</h1>
+                <div class="flex items-center space-x-4 text-sm">
+                    {% if class_obj.code %}
+                    <span><i class="fas fa-hashtag"></i> {{ class_obj.code }}</span>
+                    {% endif %}
+                    {% if class_obj.teacher_name %}
+                    <span><i class="fas fa-chalkboard-teacher"></i> {{ class_obj.teacher_name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center space-x-4">
+                <a href="{{ url_for('frontend.class_edit', class_id=class_obj.id) }}" 
+                   class="px-4 py-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-50 transition">
+                    <i class="fas fa-cog mr-2"></i> Settings
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Total Students</p>
+                    <p class="text-3xl font-bold text-indigo-600">{{ students|length }}</p>
+                </div>
+                <div class="bg-indigo-100 rounded-full p-4">
+                    <i class="fas fa-users text-2xl text-indigo-600"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Total Classes</p>
+                    <p class="text-3xl font-bold text-green-600">{{ class_obj.total_classes or 0 }}</p>
+                </div>
+                <div class="bg-green-100 rounded-full p-4">
+                    <i class="fas fa-calendar-check text-2xl text-green-600"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Avg Duration</p>
+                    <p class="text-3xl font-bold text-purple-600">{{ "%.0f"|format(avg_duration) }} min</p>
+                </div>
+                <div class="bg-purple-100 rounded-full p-4">
+                    <i class="fas fa-clock text-2xl text-purple-600"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Class Average</p>
+                    <p class="text-3xl font-bold text-orange-600">{{ "%.1f"|format(class_average) }}%</p>
+                </div>
+                <div class="bg-orange-100 rounded-full p-4">
+                    <i class="fas fa-chart-line text-2xl text-orange-600"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mark Configuration -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">
+                <i class="fas fa-cog text-indigo-600 mr-2"></i>
+                Mark Configuration
+            </h2>
+        </div>
+        <form method="GET" class="flex items-end space-x-4">
+            <input type="hidden" name="class_id" value="{{ class_obj.id }}">
+            <div class="flex-1">
+                <label for="max_marks" class="block text-sm font-semibold text-gray-700 mb-2">
+                    Maximum Marks (for 100% attendance)
+                </label>
+                <input type="number" id="max_marks" name="max_marks" 
+                       value="{{ max_marks }}" min="1" max="100" step="0.5"
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <button type="submit" 
+                    class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition">
+                <i class="fas fa-sync-alt mr-2"></i> Recalculate
+            </button>
+        </form>
+        <p class="mt-3 text-sm text-gray-600">
+            <i class="fas fa-info-circle text-indigo-600"></i> 
+            Student marks are calculated proportionally: (Attendance % / 100) × Maximum Marks
+        </p>
+    </div>
+    
+    <!-- Attendance Table -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-green-500 to-teal-600 px-6 py-4">
+            <h2 class="text-lg font-bold text-white flex items-center">
+                <i class="fas fa-table mr-3"></i>
+                Student Attendance Report
+            </h2>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b-2 border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            #
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Student Name
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Student ID
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Classes Attended
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Avg Duration
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Attendance %
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Marks
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Status
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for data in attendance_data %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ loop.index }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                                    {{ data.student.name[0].upper() }}
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-semibold text-gray-900">{{ data.student.name }}</div>
+                                    <div class="text-xs text-gray-500">FP ID: {{ data.student.fingerprint_id }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ data.student.student_id or 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <div class="text-sm font-bold text-gray-900">
+                                {{ data.classes_attended }} / {{ class_obj.total_classes or 0 }}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <div class="text-sm font-semibold text-purple-600">
+                                {% if data.avg_duration %}
+                                    {{ "%.0f"|format(data.avg_duration) }} min
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <div class="flex items-center justify-center space-x-2">
+                                <div class="w-24 bg-gray-200 rounded-full h-2.5">
+                                    <div class="bg-gradient-to-r 
+                                                {% if data.attendance_percentage >= 75 %}from-green-500 to-green-600
+                                                {% elif data.attendance_percentage >= 50 %}from-yellow-500 to-yellow-600
+                                                {% else %}from-red-500 to-red-600{% endif %} 
+                                                h-2.5 rounded-full" 
+                                         style="width: {{ data.attendance_percentage }}%"></div>
+                                </div>
+                                <span class="text-sm font-bold 
+                                           {% if data.attendance_percentage >= 75 %}text-green-600
+                                           {% elif data.attendance_percentage >= 50 %}text-yellow-600
+                                           {% else %}text-red-600{% endif %}">
+                                    {{ "%.1f"|format(data.attendance_percentage) }}%
+                                </span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="text-lg font-bold 
+                                       {% if data.marks >= max_marks * 0.75 %}text-green-600
+                                       {% elif data.marks >= max_marks * 0.5 %}text-yellow-600
+                                       {% else %}text-red-600{% endif %}">
+                                {{ "%.2f"|format(data.marks) }} / {{ max_marks }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            {% if data.attendance_percentage >= 75 %}
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    <i class="fas fa-check-circle mr-1"></i> Excellent
+                                </span>
+                            {% elif data.attendance_percentage >= 50 %}
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                    <i class="fas fa-exclamation-circle mr-1"></i> Average
+                                </span>
+                            {% else %}
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                    <i class="fas fa-times-circle mr-1"></i> Poor
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="px-6 py-12 text-center">
+                            <div class="flex flex-col items-center justify-center text-gray-400">
+                                <i class="fas fa-user-slash text-5xl mb-4"></i>
+                                <p class="text-lg font-semibold">No students enrolled in this class</p>
+                                <a href="{{ url_for('frontend.student_add') }}" 
+                                   class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                                    <i class="fas fa-user-plus mr-2"></i> Add Student
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Export Options -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">
+            <i class="fas fa-download text-indigo-600 mr-2"></i>
+            Export Options
+        </h2>
+        <div class="flex flex-wrap gap-4">
+            <button onclick="window.print()" 
+                    class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+                <i class="fas fa-print mr-2"></i> Print Report
+            </button>
+            <button onclick="exportToCSV()" 
+                    class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                <i class="fas fa-file-csv mr-2"></i> Export CSV
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportToCSV() {
+    const rows = [];
+    const headers = ['#', 'Student Name', 'Student ID', 'Classes Attended', 'Total Classes', 'Avg Duration (min)', 'Attendance %', 'Marks', 'Max Marks', 'Status'];
+    rows.push(headers.join(','));
+    
+    const tableRows = document.querySelectorAll('tbody tr');
+    tableRows.forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length > 1) {
+            const data = [
+                index + 1,
+                cells[1].querySelector('.text-sm').textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim().split('/')[0].trim(),
+                cells[3].textContent.trim().split('/')[1].trim(),
+                cells[4].textContent.trim().replace(' min', ''),
+                cells[5].querySelector('span').textContent.trim().replace('%', ''),
+                cells[6].textContent.trim().split('/')[0].trim(),
+                cells[6].textContent.trim().split('/')[1].trim(),
+                cells[7].textContent.trim()
+            ];
+            rows.push(data.join(','));
+        }
+    });
+    
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '{{ class_obj.name|replace(" ", "_") }}_attendance_report.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+// Print styles
+const style = document.createElement('style');
+style.textContent = `
+    @media print {
+        .sidebar, nav, button, .bg-gradient-to-r.from-indigo-600 a {
+            display: none !important;
+        }
+        body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}
