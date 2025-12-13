@@ -8,9 +8,9 @@
 #include <esp_wifi.h>  // Required for esp_wifi_set_mac()
 
 // ================== WIFI & SERVER CREDENTIALS ==================
-const char* ssid = "5hagat0-Private";
-const char* password = "1292?5hagat0";
-const char* serverURL = "http://10.217.44.113:8888";
+const char* ssid = "Saif12";
+const char* password = "00000000";
+const char* serverURL = "http://156.67.110.215:8888";
 // Note: If running locally, use your computer's local IP (not 127.0.0.1)
 // Find IP with: hostname -I (Linux/Mac) or ipconfig (Windows)
 
